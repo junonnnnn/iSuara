@@ -20,7 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import com.isuara.app.ml.SignPredictor
-import com.isuara.app.service.GonkaTranslator
+import com.isuara.app.service.GeminiClients
+import com.isuara.app.service.geminiDebate
+import com.isuara.app.service.gonkaDebate
 import com.isuara.app.service.LanguagePreference
 import com.isuara.app.service.Language
 import com.isuara.app.service.Translator
@@ -71,23 +73,21 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Model load failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
 
-        // GonkaRouter translator (optional — needs API key).
-        // The key itself is read by GonkaClient; this only decides whether the
-        // feature is enabled at all.
-        val apiKey = try {
-            BuildConfig.GONKA_API_KEY
-        } catch (_: Exception) {
-            ""
-        }
-        translator = if (apiKey.isNotBlank() && apiKey != "\"\"") {
+        // Translator (optional — needs at least one API key). The keys are read
+        // by GeminiClients; this only decides whether the feature is enabled.
+        translator = if (GeminiClients.isConfigured) {
             try {
-                GonkaTranslator()
+                // GonkaRouter path - kept for reference, unwired 2026-08-31
+                // because the router degraded to ~19 tok/s (3-55s per call).
+                // To switch back, comment out the Gemini line and uncomment this:
+                // gonkaDebate()
+                geminiDebate()
             } catch (e: Exception) {
-                Log.w(TAG, "GonkaRouter init failed: ${e.message}")
+                Log.w(TAG, "Translator init failed: ${e.message}")
                 null
             }
         } else {
-            Log.w(TAG, "No GonkaRouter API key — translate feature disabled")
+            Log.w(TAG, "No Gemini API key — translate feature disabled")
             null
         }
 

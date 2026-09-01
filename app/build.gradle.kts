@@ -25,9 +25,20 @@ android {
 
         // 2. Extract the key from the loaded properties object
         val gonkaKey = localProperties.getProperty("GONKA_API_KEY") ?: ""
+        // Three keys, one per debate agent. Each MUST come from a different
+        // Google Cloud project: the free-tier limit is 5 requests/minute per
+        // PROJECT, so keys issued from one project share a single bucket and
+        // buy nothing. Slot 1 falls back to the original single-key name.
+        val geminiKey1 = localProperties.getProperty("GEMINI_API_KEY_1")
+            ?: localProperties.getProperty("GEMINI_API_KEY") ?: ""
+        val geminiKey2 = localProperties.getProperty("GEMINI_API_KEY_2") ?: ""
+        val geminiKey3 = localProperties.getProperty("GEMINI_API_KEY_3") ?: ""
 
         // 3. Define the build config field so the app can see it
         buildConfigField("String", "GONKA_API_KEY", "\"$gonkaKey\"")
+        buildConfigField("String", "GEMINI_API_KEY_1", "\"$geminiKey1\"")
+        buildConfigField("String", "GEMINI_API_KEY_2", "\"$geminiKey2\"")
+        buildConfigField("String", "GEMINI_API_KEY_3", "\"$geminiKey3\"")
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
@@ -64,6 +75,27 @@ android {
     // Don't compress TFLite models or MediaPipe task bundles
     androidResources {
         noCompress += listOf("tflite", "task")
+    }
+
+    // google-genai is a server-side SDK: several of its jars ship the same
+    // META-INF metadata, which the packager refuses to merge. None of it is
+    // needed at runtime on Android.
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/INDEX.LIST",
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/license.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt",
+                "META-INF/notice.txt",
+                "META-INF/*.SF",
+                "META-INF/*.DSA",
+                "META-INF/*.RSA",
+            )
+        }
     }
 }
 
@@ -107,6 +139,16 @@ dependencies {
     // GonkaRouter — reached with the Anthropic SDK (GonkaRouter speaks the
     // Messages API); base URL is overridden in service/GonkaClient.kt
     implementation("com.anthropic:anthropic-java:2.59.0")
+
+    // Gemini — the active provider. Server-side SDK, but OkHttp-based rather
+    // than java.net.http, which is what makes it viable on Android.
+    implementation("com.google.genai:google-genai:1.68.0") {
+        // MediaPipe brings protobuf-javalite, which Android needs; google-genai
+        // brings full protobuf-java. They define the same classes, so dexing
+        // fails on duplicates. The REST path we use goes over OkHttp + Gson, so
+        // dropping the JRE protobuf should cost us nothing.
+        exclude(group = "com.google.protobuf", module = "protobuf-java")
+    }
 
     // Kotlin coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
