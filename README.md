@@ -7,11 +7,9 @@
 
 ## 1. Repository Overview & Team Introduction
 
-Welcome to the official repository for **iSuara**, an Edge-AI Android application built to provide real-time, pocket-sized translation of Bahasa Isyarat Malaysia (BIM) into spoken Malay. This repository contains the complete Android Studio project, including the native Kotlin UI, MediaPipe vision extractors, LiteRT inference pipeline, and GonkaRouter API integration.
+Welcome to the official repository for **iSuara**, an Edge-AI Android application built to provide real-time, pocket-sized translation of Bahasa Isyarat Malaysia (BIM) into Malay, English, Mandarin and Tamil. This repository contains the complete Android Studio project, including the native Kotlin UI, MediaPipe vision extractors, LiteRT inference pipeline, and the multi-agent GonkaRouter translation layer.
 
 **Team Name:** sudo rm -rf /
-
-**Team Members:** LIM HONG ZHANG, TAN CHEE KEAT, YONG JUN ONN, JITESH A/L MOGANA RAJA
 
 ---
 
@@ -31,7 +29,7 @@ iSuara is built to advance the United Nations Sustainable Development Goals:
 
 ### Short Description
 
-iSuara is a real-time, native Android application that bridges the communication gap between the Deaf community and the hearing public. It uses on-device Edge Machine Learning to track 98 BIM signs via the smartphone camera and utilizes GonkaRouter to grammatically restructure the signs into natural, spoken Bahasa Melayu.
+iSuara is a real-time, native Android application that bridges the communication gap between the Deaf community and the hearing public. It uses on-device Edge Machine Learning to track 98 BIM signs via the smartphone camera, then routes the detected glosses through several language models that each propose a reading before a judge model picks the best one. The result is rendered in Malay, English, Mandarin and Tamil, and spoken aloud in whichever the user selects.
 
 ---
 
@@ -39,8 +37,10 @@ iSuara is a real-time, native Android application that bridges the communication
 
 * **Real-Time Vision Tracking:** Uses the standard smartphone camera to extract 3D skeletal data without requiring special gloves, depth cameras, or cloud video processing.
 * **Speed-Invariant ML Recognition:** A custom AI model that adapts to any signing speed, successfully recognizing highly compressed, fast motion without dropping frames.
-* **Semantic AI Translator:** Overcomes the "Topic-Comment" syntax barrier of BIM by inferring hidden context and restructuring disjointed keywords into grammatically perfect Malay.
-* **Localized Text-To-Speech:** Instantly vocalizes the translated sentence aloud, specifically targeted for the Malay (`ms_MY`) locale to provide clear, native audio output.
+* **Semantic AI Translator:** Overcomes the "Topic-Comment" syntax barrier of BIM by inferring hidden context and restructuring disjointed keywords into grammatical Malay.
+* **Multi-Agent Reasoning:** BIM glosses arrive loosely ordered and are genuinely ambiguous, so a single model simply commits to one reading. iSuara asks three different models for a translation, then has a judge model choose the most faithful candidate rather than trusting any one of them.
+* **Four-Language Output:** Every translation returns Malay, English, Mandarin and Tamil in a single request, so switching the display language afterwards is instant and costs nothing. Non-Malay selections keep the Malay visible and add the chosen language on a row beneath it.
+* **Multilingual Text-To-Speech:** Speaks the selected language, falling back to Malay when a device lacks that voice — Mandarin and Tamil voice data is frequently absent on Malaysian retail devices.
 
 ---
 
@@ -51,7 +51,7 @@ iSuara is a real-time, native Android application that bridges the communication
 * **Android Studio & Kotlin Native:** The foundation of our zero-copy architecture, enabling direct access to camera hardware (CameraX) and the device's GPU without the bridge-latency of cross-platform frameworks.
 * **Google MediaPipe:** Handles hardware-parallelized skeletal extraction (Pose on GPU, Hands on CPU) of 75 keypoints per frame.
 * **Google LiteRT:** Runs our custom int8-quantized BiLSTM model locally, taking only ~1-3ms per inference.
-* **GonkaRouter (Kimi K2.6):** Acts as our cloud-based semantic brain, transforming raw BIM glosses (e.g., "Market + I + Go") into natural sentences (e.g., "Saya pergi ke pasar") instantly.
+* **GonkaRouter (DeepSeek V4-Flash, MiniMax M2.7, Kimi K2.6):** Acts as our cloud-based semantic brain, transforming raw BIM glosses (e.g., "Market + I + Go") into natural sentences (e.g., "Saya pergi ke pasar"). All three models answer the same prompt in parallel and DeepSeek adjudicates.
 * **Google Text-to-Speech (TTS):** The offline native Android TTS engine used to execute the final audio output.
 * **Google Colab:** Our primary environment for model training and evaluating quantitative analytics via Matplotlib.
 
@@ -66,7 +66,9 @@ iSuara is a real-time, native Android application that bridges the communication
 
 ### System Architecture
 
-iSuara utilizes a **Decoupled Edge-Cloud Pipeline**. Heavy visual processing (tracking and sign prediction) happens 100% offline on the Edge, ensuring zero-latency and total user privacy. The Cloud (GonkaRouter) is triggered only for lightweight semantic translation of text payloads (<1KB).
+iSuara utilizes a **Decoupled Edge-Cloud Pipeline**. Heavy visual processing (tracking and sign prediction) happens 100% offline on the Edge, ensuring zero-latency and total user privacy. The Cloud (GonkaRouter) is triggered only for semantic translation of text payloads (<1KB) — no video ever leaves the device.
+
+The cloud stage is a four-call debate: three models translate the same glosses concurrently, then a judge model is shown the candidates and returns the index of the best one. The judge picks an index rather than writing its own sentence, so the answer is always something an agent actually proposed and the four languages stay mutually consistent. If some agents fail the judge decides among the survivors; if all fail, the app falls back to displaying and speaking the raw glosses.
 
 ### Workflow
 
@@ -74,8 +76,9 @@ iSuara utilizes a **Decoupled Edge-Cloud Pipeline**. Heavy visual processing (tr
 2. **Extract:** MediaPipe hardware parallelism tracks body pose (GPU) and dynamically crops hand regions (CPU).
 3. **Normalize:** `FrameNormalizer` applies EMA smoothing and engineered features (velocity/acceleration).
 4. **Predict:** BiLSTM model evaluates the temporal array to predict one of 98 BIM signs natively on the GPU.
-5. **Refine:** The routed model restructures the buffered sign tokens into conversational SVO Malay.
-6. **Output:** The app displays the text via Compose UI and speaks it aloud via Android TTS.
+5. **Refine:** Three models each restructure the buffered sign tokens into conversational SVO Malay, plus English, Mandarin and Tamil.
+6. **Adjudicate:** A judge model selects the most faithful candidate.
+7. **Output:** The app displays the sentence via Compose UI — Malay always, with the selected language beneath it — and speaks the selected language via Android TTS.
 
 ---
 
@@ -96,8 +99,9 @@ iSuara utilizes a **Decoupled Edge-Cloud Pipeline**. Heavy visual processing (tr
 * *Solution:* We built a **Dynamic Hand-Crop Strategy** combined with shoulder-width normalization. The app uses body wrist coordinates to artificially "zoom in" on the hands, extending our accurate tracking range to 1.5 meters (a 200% increase).
 
 
-
----
+* **Challenge 4: Ambiguous Gloss Ordering**
+* *Problem:* BIM glosses arrive as a loosely ordered bag of words, and a single model just commits to one reading with no signal about how confident that reading is.
+* *Solution:* We fan the same glosses out to **three different models** and have a fourth call adjudicate. On genuinely ambiguous input the models disagree in useful ways; on clear input they converge, which is itself a signal. The cost is latency — the pipeline waits for the slowest model — so this is a quality-over-speed tradeoff, not a free win.
 
 ## 7. Installation & Setup
 
@@ -109,7 +113,7 @@ iSuara utilizes a **Decoupled Edge-Cloud Pipeline**. Heavy visual processing (tr
 
 ### 2. GonkaRouter API Key
 
-Create a `local.properties` file in the `android/` directory and add your key:
+Create a `local.properties` file in the project root and add your key:
 
 ```properties
 GONKA_API_KEY=sk-xxxxxx
@@ -121,10 +125,8 @@ GONKA_API_KEY=sk-xxxxxx
 ### 3. Build & Run
 
 ```bash
-cd android
 ./gradlew assembleDebug
 # Or simply open the project in Android Studio and click Run
-
 ```
 
 ### 4. First Run Instructions
@@ -132,8 +134,9 @@ cd android
 1. Grant camera permissions when prompted.
 2. Point the camera at a person signing BIM.
 3. Detected words will appear and build in the bottom buffer.
-4. Tap **Translate** to structure the sentence with GonkaRouter.
-5. Tap **Speak** to hear it via TTS.
-6. Tap **Reset** to clear the current buffer.
+4. Translation fires automatically after two seconds of stillness, or tap **Translate** to force it.
+5. Use the language chip (**MS / EN / 中 / த**) to switch display and speech language. The choice persists across restarts.
+6. Tap **Speak** to hear the sentence in the selected language.
+7. Tap the bin icon to clear the current buffer.
 
 ---
