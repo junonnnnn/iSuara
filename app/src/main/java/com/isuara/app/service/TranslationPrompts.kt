@@ -1,11 +1,11 @@
 package com.isuara.app.service
 
 /**
- * Prompts shared by every provider.
+ * Prompts shared by every debating model.
  *
- * Kept in one place so the Gemini and GonkaRouter translators cannot drift
- * apart: switching provider must not silently change what the model is asked
- * for, or comparing their output would be meaningless.
+ * Kept in one place so all three agents are asked for exactly the same thing.
+ * That is what makes the comparison meaningful: any difference between
+ * candidates is attributable to the model, not to a differing prompt.
  */
 object TranslationPrompts {
 
@@ -30,27 +30,6 @@ object TranslationPrompts {
 
     /** Builds the per-request user turn. */
     fun userTurn(words: List<String>): String = "Input: $words\nOutput:"
-
-    /**
-     * The three interpretive stances for the multi-agent path.
-     *
-     * They must differ substantively, not just cosmetically. Beyond producing
-     * genuinely different readings of ambiguous glosses, distinct prompts also
-     * guarantee distinct requests — a provider that caches by request content
-     * would otherwise return one answer three times.
-     */
-    val PERSONAS = listOf(
-        "INTERPRETIVE STANCE: Be literal and conservative. Stay as close to the " +
-            "given glosses as grammar allows. Add only the particles and function " +
-            "words Malay requires. Do not invent context, emotions or details the " +
-            "glosses do not state.",
-        "INTERPRETIVE STANCE: Prioritise natural, fluent, conversational Malay. " +
-            "Expand the glosses into how a native speaker would actually say this " +
-            "out loud, adding implied verbs and connectives so the sentence flows.",
-        "INTERPRETIVE STANCE: Infer the most plausible real-world situation behind " +
-            "these glosses. Consider who is speaking to whom and why, and reflect " +
-            "the emotional register — urgency, worry, politeness — in your phrasing.",
-    )
 
     val JUDGE = """
         You are evaluating candidate translations of Bahasa Isyarat Malaysia
@@ -78,7 +57,4 @@ object TranslationPrompts {
         return "Glosses: $words\n\nCandidates:\n$numbered\n\nOutput:"
     }
 
-    /** Appends an interpretive stance to the shared system prompt. */
-    fun withPersona(persona: String?): String =
-        if (persona.isNullOrBlank()) SYSTEM else listOf(SYSTEM, persona).joinToString("\n\n")
 }

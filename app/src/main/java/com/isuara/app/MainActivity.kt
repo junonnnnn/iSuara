@@ -20,7 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import com.isuara.app.ml.SignPredictor
-import com.isuara.app.service.GonkaTranslator
+import com.isuara.app.service.gonkaDebate
 import com.isuara.app.service.LanguagePreference
 import com.isuara.app.service.Language
 import com.isuara.app.service.Translator
@@ -71,9 +71,8 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Model load failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
 
-        // GonkaRouter translator (optional — needs API key).
-        // The key itself is read by GonkaClient; this only decides whether the
-        // feature is enabled at all.
+        // Translator (optional — needs an API key). The key itself is read by
+        // GonkaClient; this only decides whether the feature is enabled.
         val apiKey = try {
             BuildConfig.GONKA_API_KEY
         } catch (_: Exception) {
@@ -81,9 +80,9 @@ class MainActivity : ComponentActivity() {
         }
         translator = if (apiKey.isNotBlank() && apiKey != "\"\"") {
             try {
-                GonkaTranslator()
+                gonkaDebate()
             } catch (e: Exception) {
-                Log.w(TAG, "GonkaRouter init failed: ${e.message}")
+                Log.w(TAG, "Translator init failed: ${e.message}")
                 null
             }
         } else {

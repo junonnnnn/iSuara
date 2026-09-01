@@ -8,15 +8,49 @@ import org.json.JSONObject
  * Lives apart from any one translator because every provider needs the same
  * tolerance: models wrap objects in markdown fences and some prepend a visible
  * reasoning monologue (the latency benchmark saw one leak `<think>` blocks on
- * 10/10 runs). Both are handled by taking the outermost brace-delimited span.
+ * 10/10 runs). Both are handled by scanning for the last brace-balanced object.
  */
 object TranslationParsing {
 
-    /** The outermost `{...}` span, or null when there isn't one. */
+    /**
+     * The last complete, brace-balanced `{...}` object in [raw], or null.
+     *
+     * Deliberately not "first { to last }": MiniMax leaked a visible <think>
+     * monologue on 10 of 10 benchmark runs, and if that prose contains a brace
+     * the naive span swallows it and parsing fails — which would silently drop
+     * that model out of the debate. A single pass tracking string state, escapes
+     * and depth finds the real object regardless of what precedes it.
+     *
+     * Takes the LAST object so that a model which restates the prompt's example
+     * before answering does not have its example picked as the answer.
+     */
     private fun jsonSpan(raw: String): String? {
-        val start = raw.indexOf('{')
-        val end = raw.lastIndexOf('}')
-        return if (start >= 0 && end > start) raw.substring(start, end + 1) else null
+        var depth = 0
+        var start = -1
+        var last: String? = null
+        var inString = false
+        var escaped = false
+
+        for (i in raw.indices) {
+            val c = raw[i]
+            when {
+                escaped -> escaped = false
+                inString && c == '\\' -> escaped = true
+                c == '"' -> inString = !inString
+                inString -> Unit
+                c == '{' -> {
+                    if (depth == 0) start = i
+                    depth++
+                }
+                c == '}' -> {
+                    if (depth > 0) {
+                        depth--
+                        if (depth == 0 && start >= 0) last = raw.substring(start, i + 1)
+                    }
+                }
+            }
+        }
+        return last
     }
 
     private fun parse(raw: String, what: String): JSONObject {

@@ -68,6 +68,47 @@ class TranslationParsingTest {
         assertTrue(t.en.contains(","))
     }
 
+    /**
+     * The naive "first { to last }" span broke here: a brace inside the
+     * reasoning swallowed the whole thing. MiniMax leaks reasoning on every
+     * run, so this is the case that keeps it in the debate.
+     */
+    @Test
+    fun `ignores reasoning that itself contains braces`() {
+        val t = TranslationParsing.extractTranslation(
+            """
+            <think>
+            The prompt asks for {"ms": ..., "en": ...} so I must emit an object
+            with exactly those keys. Let me restate the shape {like this} first.
+            </think>
+            {"ms": "Saya lapar.", "en": "I am hungry.", "zh": "我饿了。", "ta": "எனக்கு பசிக்கிறது."}
+            """.trimIndent()
+        )
+        assertEquals("Saya lapar.", t.ms)
+    }
+
+    @Test
+    fun `keeps braces that appear inside a string value`() {
+        val t = TranslationParsing.extractTranslation(
+            """{"ms": "Kurungan { dan } dalam ayat.", "en": "Braces { and } in a sentence.", "zh": "句子里的 { 和 }。", "ta": "வாக்கியத்தில் { மற்றும் }."}"""
+        )
+        assertEquals("Kurungan { dan } dalam ayat.", t.ms)
+        assertTrue(t.en.contains("{"))
+    }
+
+    /** A model that echoes the prompt's example must not have it picked. */
+    @Test
+    fun `takes the last object when several are present`() {
+        val t = TranslationParsing.extractTranslation(
+            """
+            Example was {"ms": "Contoh.", "en": "Example.", "zh": "例子。", "ta": "எடுத்துக்காட்டு."}
+            My answer:
+            {"ms": "Saya faham.", "en": "I understand.", "zh": "我明白。", "ta": "எனக்கு புரிகிறது."}
+            """.trimIndent()
+        )
+        assertEquals("Saya faham.", t.ms)
+    }
+
     @Test
     fun `rejects a missing language`() {
         assertThrows(IllegalArgumentException::class.java) {
