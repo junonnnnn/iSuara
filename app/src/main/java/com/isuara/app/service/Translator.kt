@@ -1,5 +1,7 @@
 package com.isuara.app.service
 
+import kotlinx.coroutines.flow.StateFlow
+
 /**
  * One sentence rendered in every supported language.
  *
@@ -40,4 +42,13 @@ data class Translation(
  */
 interface Translator {
     suspend fun translate(words: List<String>): Translation
+
+    /**
+     * Progress through the pipeline, for the UI to display while waiting.
+     *
+     * Mirrors how SignPredictor exposes its state, so the UI collects it with
+     * the pattern already used elsewhere. Single-model implementations only ever
+     * report IDLE and CONSULTING.
+     */
+    val stage: StateFlow<TranslationStage>
 }

@@ -40,6 +40,7 @@ import com.isuara.app.R
 import com.isuara.app.ml.SignPredictor
 import com.isuara.app.service.Language
 import com.isuara.app.service.Translation
+import com.isuara.app.service.TranslationStage
 import com.isuara.app.service.Translator
 import com.isuara.app.service.TtsService
 import kotlinx.coroutines.launch
@@ -64,6 +65,10 @@ fun CameraScreen(
     val scope = rememberCoroutineScope()
 
     val predictionState by signPredictor.state.collectAsState()
+    // Vague pipeline progress: shows the multi-agent work is real without
+    // putting candidate sentences or judge reasoning on screen.
+    val translationStage by (translator?.stage?.collectAsState()
+        ?: remember { mutableStateOf(TranslationStage.IDLE) })
 
     var showLandmarks by remember { mutableStateOf(false) }
     var translation by remember { mutableStateOf<Translation?>(null) }
@@ -407,7 +412,13 @@ fun CameraScreen(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     CircularProgressIndicator(color = Color(0xFF2196F3), modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text("Refining grammar...", fontFamily = googleSansFlex, color = Color(0xFF2196F3), fontSize = 14.sp)
+                                    Text(
+                                        text = translationStage.label
+                                            .ifEmpty { "Refining grammar..." },
+                                        fontFamily = googleSansFlex,
+                                        color = Color(0xFF2196F3),
+                                        fontSize = 14.sp
+                                    )
                                 }
                             } else {
                                 translation?.let { t ->
