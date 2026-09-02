@@ -1,6 +1,7 @@
 package com.isuara.app.service
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -153,5 +154,52 @@ class TranslationParsingTest {
         assertEquals("E", t.forLanguage(Language.ENGLISH))
         assertEquals("Z", t.forLanguage(Language.MANDARIN))
         assertEquals("T", t.forLanguage(Language.TAMIL))
+    }
+
+    // ---- emotion enrichment -------------------------------------------------
+
+    @Test
+    fun `reads the emotion and style fields when present`() {
+        val t = TranslationParsing.extractTranslation(
+            """{"ms": "Tolong! Cepat!", "en": "Help! Quick!", "zh": "\u6551\u547d!", "ta": "\u0b89\u0ba4\u0bb5\u0bbf!",
+                "emotion": "fear", "style": "Say this urgently and fearfully."}"""
+        )
+        assertEquals("fear", t.emotion)
+        assertEquals("Say this urgently and fearfully.", t.style)
+    }
+
+    /**
+     * The enrichment must never be load-bearing. A model that ignores the new
+     * instruction still produced a perfectly good translation, and failing the
+     * whole request would drop that model out of the debate for a cosmetic
+     * shortfall.
+     */
+    @Test
+    fun `a reply without emotion or style still parses`() {
+        val t = TranslationParsing.extractTranslation(
+            """{"ms": "Saya lapar.", "en": "I am hungry.", "zh": "\u6211\u997f\u4e86\u3002", "ta": "\u0baa\u0b9a\u0bbf."}"""
+        )
+        assertEquals("Saya lapar.", t.ms)
+        assertNull(t.emotion)
+        assertNull(t.style)
+    }
+
+    /** Blank is absence, not an empty directive to hand to the voice engine. */
+    @Test
+    fun `blank emotion and style are normalised to null`() {
+        val t = TranslationParsing.extractTranslation(
+            """{"ms": "A", "en": "B", "zh": "C", "ta": "D", "emotion": "  ", "style": ""}"""
+        )
+        assertNull(t.emotion)
+        assertNull(t.style)
+    }
+
+    @Test
+    fun `missing a language still fails even when emotion is present`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TranslationParsing.extractTranslation(
+                """{"ms": "A", "en": "B", "zh": "C", "emotion": "anger", "style": "Angrily."}"""
+            )
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.isuara.app.service
 import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.util.Log
+import com.isuara.app.emotion.EmotionReading
 import java.util.Locale
 
 /**
@@ -19,6 +20,13 @@ class TtsService(context: Context) {
         private const val TAG = "TtsService"
         private val LOCALE_MS = Locale("ms", "MY")
         private val LOCALE_ID = Locale("id", "ID")
+
+        /**
+         * Slightly under normal speed, which reads as clearer for a synthetic
+         * voice. Emotion scales this rather than replacing it, so the deliberate
+         * clarity choice survives an expressive utterance.
+         */
+        private const val BASE_RATE = 0.9f
     }
 
     private var tts: TextToSpeech? = null
@@ -28,7 +36,7 @@ class TtsService(context: Context) {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
                 applyMalay()
-                tts?.setSpeechRate(0.9f)
+                tts?.setSpeechRate(BASE_RATE)
                 isReady = true
             } else {
                 Log.e(TAG, "TTS initialization failed: $status")
@@ -61,10 +69,23 @@ class TtsService(context: Context) {
      *
      * If the requested voice is unavailable this speaks [fallbackText] (the
      * Malay rendering) instead.
+     *
+     * [emotion] shifts pitch and rate. It is a coarse effect — the on-device
+     * engine has no emotion API at all, so this is the only lever available —
+     * but a frightened sentence that is faster and higher still reads as
+     * frightened, which flat delivery does not. The expressive path is
+     * [GeminiTtsService]; this is what runs when that is unavailable.
      */
-    fun speak(text: String, language: Language, fallbackText: String = text) {
+    fun speak(
+        text: String,
+        language: Language,
+        fallbackText: String = text,
+        emotion: EmotionReading? = null,
+    ) {
         val engine = tts ?: return
         if (!isReady) return
+
+        applyProsody(emotion)
 
         if (language == Language.MALAY) {
             applyMalay()
@@ -83,6 +104,20 @@ class TtsService(context: Context) {
         if (fallbackText.isNotBlank()) {
             engine.speak(fallbackText, TextToSpeech.QUEUE_FLUSH, null, "isuara_tts")
         }
+    }
+
+    /**
+     * Set pitch and rate for the next utterance.
+     *
+     * Always called, including with a null [emotion], so that a neutral sentence
+     * following an angry one is reset rather than inheriting its prosody — these
+     * settings persist on the engine until changed.
+     */
+    private fun applyProsody(emotion: EmotionReading?) {
+        val engine = tts ?: return
+        val label = emotion?.label
+        engine.setPitch(label?.pitch ?: 1.0f)
+        engine.setSpeechRate(BASE_RATE * (label?.rateScale ?: 1.0f))
     }
 
     fun stop() {
