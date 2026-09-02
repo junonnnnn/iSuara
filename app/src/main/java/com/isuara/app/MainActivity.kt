@@ -11,15 +11,23 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccessibilityNew
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.isuara.app.emotion.EmotionClassifier
+import com.isuara.app.emotion.EmotionTracker
 import com.isuara.app.ml.SignPredictor
+import com.isuara.app.service.SpeechRouter
 import com.isuara.app.service.gonkaDebate
 import com.isuara.app.service.LanguagePreference
 import com.isuara.app.service.Language
@@ -37,6 +45,8 @@ class MainActivity : ComponentActivity() {
     private var translator: Translator? = null
     private var languagePreference: LanguagePreference? = null
     private var ttsService: TtsService? = null
+    private var speechRouter: SpeechRouter? = null
+    private var emotionTracker: EmotionTracker? = null
 
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -64,8 +74,18 @@ class MainActivity : ComponentActivity() {
 
     private fun initAndShow() {
         // ── Initialize ML & services ──
+        // Expression recognition is an enrichment, so it is built first and
+        // separately: if the ONNX model fails to load, the tracker stays null
+        // and the app runs exactly as it did before the feature existed.
+        emotionTracker = try {
+            EmotionTracker(EmotionClassifier(this))
+        } catch (e: Exception) {
+            Log.w(TAG, "Emotion model unavailable, continuing without it: ${e.message}")
+            null
+        }
+
         try {
-            signPredictor = SignPredictor(this)
+            signPredictor = SignPredictor(this, emotionTracker)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to init SignPredictor", e)
             Toast.makeText(this, "Model load failed: ${e.message}", Toast.LENGTH_LONG).show()
@@ -90,7 +110,11 @@ class MainActivity : ComponentActivity() {
             null
         }
 
-        ttsService = TtsService(this)
+        val tts = TtsService(this)
+        ttsService = tts
+        // The UI speaks only through the router, which prefers the expressive
+        // cloud voice and silently falls back to [tts] when it is unavailable.
+        speechRouter = SpeechRouter(tts)
         languagePreference = LanguagePreference(this)
 
         // ── Compose UI ──
@@ -101,17 +125,78 @@ class MainActivity : ComponentActivity() {
                     color = Color.Black
                 ) {
                     val predictor = signPredictor
-                    val tts = ttsService
+                    val speech = speechRouter
 
-                    if (predictor != null && tts != null) {
+                    if (predictor != null && speech != null) {
                         val languagePrefs = languagePreference
-                        CameraScreen(
-                            signPredictor = predictor,
-                            translator = translator,
-                            ttsService = tts,
-                            initialLanguage = languagePrefs?.get() ?: Language.MALAY,
-                            onLanguageChange = { languagePrefs?.set(it) }
-                        )
+                        var currentTab by remember { mutableIntStateOf(0) } // 0 = Camera, 1 = 3D Avatar
+
+                        Scaffold(
+                            bottomBar = {
+                                NavigationBar(
+                                    containerColor = Color(0xFF0D1117),
+                                    contentColor = Color.White,
+                                    tonalElevation = 0.dp
+                                ) {
+                                    NavigationBarItem(
+                                        selected = currentTab == 0,
+                                        onClick = { currentTab = 0 },
+                                        icon = {
+                                            Icon(
+                                                Icons.Filled.Videocam,
+                                                contentDescription = "Camera"
+                                            )
+                                        },
+                                        label = { Text("Sign → Voice", fontSize = 12.sp, fontWeight = if (currentTab == 0) FontWeight.Bold else FontWeight.Normal) },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = Color.White,
+                                            selectedTextColor = Color(0xFF58A6FF),
+                                            indicatorColor = Color(0xFF1F6FEB),
+                                            unselectedIconColor = Color(0xFF8B949E),
+                                            unselectedTextColor = Color(0xFF8B949E)
+                                        )
+                                    )
+
+                                    NavigationBarItem(
+                                        selected = currentTab == 1,
+                                        onClick = { currentTab = 1 },
+                                        icon = {
+                                            Icon(
+                                                Icons.Filled.AccessibilityNew,
+                                                contentDescription = "Avatar"
+                                            )
+                                        },
+                                        label = { Text("Text → Sign", fontSize = 12.sp, fontWeight = if (currentTab == 1) FontWeight.Bold else FontWeight.Normal) },
+                                        colors = NavigationBarItemDefaults.colors(
+                                            selectedIconColor = Color.White,
+                                            selectedTextColor = Color(0xFF58A6FF),
+                                            indicatorColor = Color(0xFF1F6FEB),
+                                            unselectedIconColor = Color(0xFF8B949E),
+                                            unselectedTextColor = Color(0xFF8B949E)
+                                        )
+                                    )
+                                }
+                            }
+                        ) { innerPadding ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding)
+                            ) {
+                                if (currentTab == 0) {
+                                    CameraScreen(
+                                        signPredictor = predictor,
+                                        translator = translator,
+                                        speech = speech,
+                                        emotionTracker = emotionTracker,
+                                        initialLanguage = languagePrefs?.get() ?: Language.MALAY,
+                                        onLanguageChange = { languagePrefs?.set(it) }
+                                    )
+                                } else {
+                                    com.isuara.app.avatar.ui.AvatarPlayerScreen()
+                                }
+                            }
+                        }
                     } else {
                         Box(
                             modifier = Modifier.fillMaxSize(),
@@ -131,6 +216,9 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         signPredictor?.close()
+        speechRouter?.stop()
         ttsService?.close()
+        // Closes the ONNX session and stops the inference thread.
+        emotionTracker?.close()
     }
 }
