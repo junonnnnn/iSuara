@@ -2,6 +2,7 @@ package com.isuara.app.service
 
 import android.util.Log
 import com.anthropic.models.messages.MessageCreateParams
+import com.isuara.app.emotion.EmotionReading
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,7 +64,10 @@ class GonkaTranslator(
     private val _stage = MutableStateFlow(TranslationStage.IDLE)
     override val stage: StateFlow<TranslationStage> = _stage.asStateFlow()
 
-    override suspend fun translate(words: List<String>): Translation = withContext(Dispatchers.IO) {
+    override suspend fun translate(
+        words: List<String>,
+        emotion: EmotionReading?,
+    ): Translation = withContext(Dispatchers.IO) {
         require(words.isNotEmpty()) { "no glosses to translate" }
 
         // One retry: a model that rambles once usually complies on a re-ask, and
@@ -73,7 +77,11 @@ class GonkaTranslator(
         try {
             repeat(2) { attempt ->
                 try {
-                    val raw = gonkaComplete(modelId, TranslationPrompts.SYSTEM, TranslationPrompts.userTurn(words))
+                    val raw = gonkaComplete(
+                        modelId,
+                        TranslationPrompts.SYSTEM,
+                        TranslationPrompts.userTurn(words, emotion),
+                    )
                     val translation = TranslationParsing.extractTranslation(raw)
                     Log.i(TAG, "Translation [$modelId] $words -> ${translation.ms}")
                     return@withContext translation

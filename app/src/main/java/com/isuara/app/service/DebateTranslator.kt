@@ -1,6 +1,7 @@
 package com.isuara.app.service
 
 import android.util.Log
+import com.isuara.app.emotion.EmotionReading
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -53,7 +54,10 @@ class DebateTranslator(
         delay(STAGE_HOLD_MS)
     }
 
-    override suspend fun translate(words: List<String>): Translation {
+    override suspend fun translate(
+        words: List<String>,
+        emotion: EmotionReading?,
+    ): Translation {
         require(words.isNotEmpty()) { "no glosses to translate" }
 
         try {
@@ -61,7 +65,7 @@ class DebateTranslator(
 
             val candidates = coroutineScope {
                 agents.map { agent ->
-                    async { runCatching { agent.translate(words) }.getOrNull() }
+                    async { runCatching { agent.translate(words, emotion) }.getOrNull() }
                 }.awaitAll()
             }.filterNotNull()
 
@@ -83,7 +87,7 @@ class DebateTranslator(
 
             // A failed judge must not discard candidates we already hold; an
             // arbitrary but valid answer beats falling back to raw glosses.
-            val chosen = runCatching { judge(words, candidates) }
+            val chosen = runCatching { judge(words, candidates, emotion) }
                 .onFailure { Log.w(TAG, "judge failed, using first candidate: ${it.message}") }
                 .getOrDefault(0)
 
@@ -101,9 +105,16 @@ class DebateTranslator(
      * translate(), but the judge call would otherwise run on whatever dispatcher
      * the caller used — which is Main, from the UI.
      */
-    private suspend fun judge(words: List<String>, candidates: List<Translation>): Int =
+    private suspend fun judge(
+        words: List<String>,
+        candidates: List<Translation>,
+        emotion: EmotionReading?,
+    ): Int =
         withContext(Dispatchers.IO) {
-            val raw = judgeCall(TranslationPrompts.JUDGE, TranslationPrompts.judgeTurn(words, candidates))
+            val raw = judgeCall(
+                TranslationPrompts.JUDGE,
+                TranslationPrompts.judgeTurn(words, candidates, emotion),
+            )
             val (choice, reason) = TranslationParsing.extractChoice(raw, candidates.size)
             Log.i(TAG, "judge chose [$choice] \"${candidates[choice].ms}\" — $reason")
             choice

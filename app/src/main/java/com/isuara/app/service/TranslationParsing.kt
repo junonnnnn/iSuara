@@ -66,6 +66,12 @@ object TranslationParsing {
     /**
      * Pulls the four-language translation out of a raw model reply.
      *
+     * The `emotion` and `style` keys are deliberately NOT required. They are an
+     * enrichment: a model that omits them, or that predates the prompt asking
+     * for them, must still yield a usable translation. Requiring them would turn
+     * a cosmetic shortfall into a total failure and drop that model out of the
+     * debate entirely.
+     *
      * @throws IllegalArgumentException if no complete object is present or any
      *   of the four languages is missing or blank.
      */
@@ -79,7 +85,14 @@ object TranslationParsing {
             "missing language in reply: ms=${ms.isNotEmpty()} en=${en.isNotEmpty()} " +
                 "zh=${zh.isNotEmpty()} ta=${ta.isNotEmpty()}"
         }
-        return Translation(ms = ms, en = en, zh = zh, ta = ta)
+        return Translation(
+            ms = ms,
+            en = en,
+            zh = zh,
+            ta = ta,
+            emotion = obj.optString("emotion").trim().ifEmpty { null },
+            style = obj.optString("style").trim().ifEmpty { null },
+        )
     }
 
     /**
