@@ -37,12 +37,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.isuara.app.R
+import com.isuara.app.emotion.EmotionReading
+import com.isuara.app.emotion.EmotionTracker
+import com.isuara.app.emotion.ui.EmotionChip
 import com.isuara.app.ml.SignPredictor
 import com.isuara.app.service.Language
+import com.isuara.app.service.SpeechRouter
 import com.isuara.app.service.Translation
 import com.isuara.app.service.TranslationStage
 import com.isuara.app.service.Translator
-import com.isuara.app.service.TtsService
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
@@ -56,7 +59,8 @@ val googleSansFlex = FontFamily(Font(R.font.google_sans_flex))
 fun CameraScreen(
     signPredictor: SignPredictor,
     translator: Translator?,
-    ttsService: TtsService,
+    speech: SpeechRouter,
+    emotionTracker: EmotionTracker? = null,
     initialLanguage: Language = Language.MALAY,
     onLanguageChange: (Language) -> Unit = {}
 ) {
@@ -69,12 +73,19 @@ fun CameraScreen(
     // putting candidate sentences or judge reasoning on screen.
     val translationStage by (translator?.stage?.collectAsState()
         ?: remember { mutableStateOf(TranslationStage.IDLE) })
+    // Live expression, for the chip only. The reading that actually steers a
+    // translation is taken once per sentence via readSentenceEmotion().
+    val liveEmotion by (emotionTracker?.state?.collectAsState()
+        ?: remember { mutableStateOf<EmotionReading?>(null) })
 
     var showLandmarks by remember { mutableStateOf(false) }
     var translation by remember { mutableStateOf<Translation?>(null) }
     var language by remember { mutableStateOf(initialLanguage) }
     var languageMenuOpen by remember { mutableStateOf(false) }
     var isTranslating by remember { mutableStateOf(false) }
+    // Held so the replay button re-speaks with the emotion the sentence was
+    // translated under; the window itself is consumed at translation time.
+    var spokenEmotion by remember { mutableStateOf<EmotionReading?>(null) }
     var fpsCounter by remember { mutableIntStateOf(0) }
     var displayFps by remember { mutableIntStateOf(0) }
     var lastFpsTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -100,26 +111,33 @@ fun CameraScreen(
                 isTranslating = true
                 translation = null
 
+                // Read once and reuse: readSentenceEmotion() consumes the
+                // window, so calling it again below would return nothing.
+                val sentenceEmotion = emotionTracker?.readSentenceEmotion()
+                spokenEmotion = sentenceEmotion
+
                 try {
                     val rawSentence = words.joinToString(" ")
                     // No translator configured falls back to the raw Malay
                     // glosses. A real failure throws into the catch below.
-                    val result = translator?.translate(words)
+                    val result = translator?.translate(words, sentenceEmotion)
                         ?: Translation.ofRawGlosses(rawSentence)
                     translation = result
 
-                    // Speak only the selected language; TtsService falls back to
+                    // Speak only the selected language; the router falls back to
                     // the Malay rendering if that voice is not installed.
                     val spoken = result.forLanguage(language)
                     if (spoken.isNotEmpty()) {
-                        ttsService.speak(spoken, language, result.ms)
+                        speech.speak(spoken, language, result.ms, sentenceEmotion)
                     }
                 } catch (e: Exception) {
                     // If the translator throws (e.g., no internet), fall back to
                     // the raw glosses, which are Malay — so speak them as Malay.
+                    // The emotion still applies: how it is said does not depend
+                    // on the translator having succeeded.
                     val rawSentence = words.joinToString(" ")
                     translation = Translation.ofRawGlosses(rawSentence)
-                    ttsService.speak(rawSentence, Language.MALAY)
+                    speech.speak(rawSentence, Language.MALAY, rawSentence, sentenceEmotion)
                     Log.e(TAG, "Auto-translate error, falling back to raw text", e)
                 } finally {
                     isTranslating = false
@@ -146,11 +164,11 @@ fun CameraScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // 1. EXACT 4:3 CAMERA PREVIEW
+        // 1. RESPONSIVE CAMERA PREVIEW
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(3f / 4f)
+                .weight(1.1f)
                 .background(Color.DarkGray)
         ) {
             val previewView = remember {
@@ -287,7 +305,11 @@ fun CameraScreen(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    EmotionChip(liveEmotion)
                     IconButton(
                         onClick = { showLandmarks = !showLandmarks },
                         colors = IconButtonDefaults.iconButtonColors(containerColor = if (showLandmarks) Color(0xFF2196F3) else Color.Black.copy(alpha = 0.5f))
@@ -314,38 +336,37 @@ fun CameraScreen(
             )
         }
 
-        // 2. CENTERED UI PANEL
+        // 2. CENTERED RECOGNITION & TRANSLATION PANEL
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(modifier = Modifier.height(60.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.height(44.dp), contentAlignment = Alignment.Center) {
+                val isWordActive = predictionState.currentWord.isNotEmpty() && predictionState.currentWord != SignPredictor.IDLE
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = predictionState.currentWord.isNotEmpty(),
+                    visible = isWordActive,
                     enter = fadeIn(),
                     exit = fadeOut()
                 ) {
-                    val textColor by animateColorAsState(if (predictionState.isConfident) Color(0xFF4CAF50) else Color.White.copy(alpha = 0.7f), label = "color")
+                    val textColor by animateColorAsState(if (predictionState.isConfident) Color(0xFF4CAF50) else Color.White.copy(alpha = 0.85f), label = "color")
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = predictionState.currentWord.uppercase(),
                             fontFamily = googleSansFlex,
                             color = textColor,
-                            fontSize = 24.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 2.sp
                         )
-                        // Static lookup from label_map.json; null for Malay,
-                        // for the Idle sentinel, and for unmapped glosses.
                         signPredictor.glossIn(predictionState.currentWord, language)?.let { translated ->
                             Text(
                                 text = translated,
                                 fontFamily = googleSansFlex,
                                 color = textColor.copy(alpha = 0.65f),
-                                fontSize = 15.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 letterSpacing = 1.sp
                             )
@@ -359,10 +380,10 @@ fun CameraScreen(
                 progress = { animatedConfidence },
                 modifier = Modifier.width(100.dp).height(2.dp).clip(RoundedCornerShape(1.dp)),
                 color = if (predictionState.isConfident) Color(0xFF4CAF50) else Color(0xFFFF9800),
-                trackColor = Color.DarkGray
+                trackColor = Color(0xFF21262D)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             val displaySentence = predictionState.sentence.joinToString(" ")
 
@@ -381,9 +402,9 @@ fun CameraScreen(
                     Text(
                         text = displaySentence.ifEmpty { "Waiting for signs..." },
                         fontFamily = googleSansFlex,
-                        color = if (displaySentence.isEmpty()) Color.White.copy(alpha = 0.3f) else Color.White,
+                        color = if (displaySentence.isEmpty()) Color.White.copy(alpha = 0.4f) else Color.White,
                         fontSize = 18.sp,
-                        lineHeight = 24.sp,
+                        lineHeight = 26.sp,
                         textAlign = TextAlign.Center
                     )
 
@@ -395,10 +416,11 @@ fun CameraScreen(
                         Text(
                             text = translatedGlosses,
                             fontFamily = googleSansFlex,
-                            color = Color.White.copy(alpha = 0.55f),
+                            color = Color.White.copy(alpha = 0.65f),
                             fontSize = 15.sp,
-                            lineHeight = 20.sp,
-                            textAlign = TextAlign.Center
+                            lineHeight = 22.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 4.dp)
                         )
                     }
 
@@ -428,15 +450,17 @@ fun CameraScreen(
                                         color = Color(0xFF64B5F6),
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Medium,
+                                        lineHeight = 26.sp,
                                         textAlign = TextAlign.Center
                                     )
                                     if (language.isSecondary) {
                                         Text(
                                             text = t.forLanguage(language),
                                             fontFamily = googleSansFlex,
-                                            color = Color(0xFF64B5F6).copy(alpha = 0.7f),
+                                            color = Color(0xFF64B5F6).copy(alpha = 0.75f),
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Normal,
+                                            lineHeight = 22.sp,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.padding(top = 4.dp)
                                         )
@@ -448,24 +472,24 @@ fun CameraScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            val uniformButtonHeight = 56.dp
+            val uniformButtonHeight = 52.dp
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Compact chip rather than a wide spinner: this row already
-                // carries three controls at 56.dp on a phone.
+                // Compact chip for language selection
                 Box {
                     FilledIconButton(
                         onClick = { languageMenuOpen = true },
                         modifier = Modifier.size(uniformButtonHeight),
                         colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = Color.White.copy(alpha = 0.1f)
-                        )
+                            containerColor = Color.White.copy(alpha = 0.12f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
                             text = language.shortLabel,
@@ -504,10 +528,12 @@ fun CameraScreen(
                         signPredictor.resetAll()
                         translation = null
                         isTranslating = false
-                        ttsService.stop()
+                        spokenEmotion = null
+                        speech.stop()
                     },
                     modifier = Modifier.size(uniformButtonHeight),
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White.copy(alpha = 0.1f))
+                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White.copy(alpha = 0.12f)),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color.White)
                 }
@@ -518,15 +544,14 @@ fun CameraScreen(
                         if (words.isNotEmpty() && !isTranslating) {
                             isTranslating = true
                             translation = null
+                            val sentenceEmotion = emotionTracker?.readSentenceEmotion()
+                            spokenEmotion = sentenceEmotion
                             scope.launch {
                                 try {
                                     val rawSentence = words.joinToString(" ")
-                                    // No translator falls back to raw glosses;
-                                    // real failures throw into the catch below.
-                                    translation = translator?.translate(words)
+                                    translation = translator?.translate(words, sentenceEmotion)
                                         ?: Translation.ofRawGlosses(rawSentence)
                                 } catch (e: Exception) {
-                                    // Fallback on crash (e.g., no internet connection)
                                     translation = Translation.ofRawGlosses(words.joinToString(" "))
                                     Log.e(TAG, "Manual translate error", e)
                                 } finally {
@@ -539,25 +564,34 @@ fun CameraScreen(
                         .weight(1f)
                         .height(uniformButtonHeight),
                     enabled = predictionState.sentence.isNotEmpty() && !isTranslating,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2196F3),
+                        disabledContainerColor = Color(0xFF1E2630),
+                        disabledContentColor = Color(0xFF8B949E)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text("Translate", fontFamily = googleSansFlex, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Translate", fontFamily = googleSansFlex, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
 
                 FloatingActionButton(
                     onClick = {
                         val current = translation
                         if (current != null) {
-                            ttsService.speak(current.forLanguage(language), language, current.ms)
+                            speech.speak(
+                                current.forLanguage(language), language, current.ms, spokenEmotion,
+                            )
                         } else {
-                            // Untranslated glosses are Malay, so speak them as Malay.
                             val raw = predictionState.sentence.joinToString(" ")
-                            if (raw.isNotEmpty()) ttsService.speak(raw, Language.MALAY)
+                            if (raw.isNotEmpty()) {
+                                speech.speak(raw, Language.MALAY, raw, spokenEmotion)
+                            }
                         }
                     },
                     modifier = Modifier.size(uniformButtonHeight),
                     containerColor = Color(0xFF4CAF50),
                     contentColor = Color.White,
+                    shape = RoundedCornerShape(16.dp),
                     elevation = FloatingActionButtonDefaults.elevation(0.dp)
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = "Speak")

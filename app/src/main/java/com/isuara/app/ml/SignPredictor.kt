@@ -10,12 +10,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.isuara.app.emotion.EmotionTracker
 import com.isuara.app.service.Language
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
-class SignPredictor(context: Context) {
+/**
+ * @param emotionTracker optional facial-expression channel, fed from the same
+ *   frames as the gloss pipeline. Null when the expression model failed to load,
+ *   in which case everything here behaves exactly as it did before it existed.
+ */
+class SignPredictor(
+    context: Context,
+    private val emotionTracker: EmotionTracker? = null,
+) {
 
     companion object {
         /**
@@ -98,6 +107,12 @@ class SignPredictor(context: Context) {
 
         // Pass the flag down to the extractor
         landmarkExtractor.extractAsync(bitmap, timestampMs, isFrontCamera)
+
+        // Dispatched after landmark extraction so the gloss path, which is the
+        // product, always gets the frame first. The keypoints handed over are
+        // the previous frame's — extraction for this one has not finished — the
+        // same one-frame lag the hand crop already relies on.
+        emotionTracker?.onFrame(bitmap, _state.value.keypoints)
     }
 
     private fun onLandmarksExtracted(rawKeypoints: FloatArray?, timestampMs: Long) {
@@ -210,6 +225,7 @@ class SignPredictor(context: Context) {
         lastWord = ""
         previousFrame = null
         startNewSentenceNextWord = false // ADD THIS
+        emotionTracker?.reset()
         _state.update { PredictionState() }
     }
 
