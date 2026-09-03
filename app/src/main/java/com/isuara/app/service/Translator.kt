@@ -74,4 +74,13 @@ interface Translator {
      * report IDLE and CONSULTING.
      */
     val stage: StateFlow<TranslationStage>
+
+    /**
+     * The debate as it unfolds: which models are pending, what each answered,
+     * and the judge's verdict once it lands.
+     *
+     * Richer than [stage], which is a flat enum and cannot carry candidates.
+     * Single-model implementations report one candidate and no verdict.
+     */
+    val progress: StateFlow<DebateProgress>
 }

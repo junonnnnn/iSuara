@@ -6,6 +6,10 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -45,6 +49,8 @@ import com.isuara.app.service.Language
 import com.isuara.app.service.SpeechRouter
 import com.isuara.app.service.Translation
 import com.isuara.app.service.TranslationStage
+import com.isuara.app.service.CandidateView
+import com.isuara.app.service.DebateProgress
 import com.isuara.app.service.Translator
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
@@ -71,6 +77,8 @@ fun CameraScreen(
     val predictionState by signPredictor.state.collectAsState()
     // Vague pipeline progress: shows the multi-agent work is real without
     // putting candidate sentences or judge reasoning on screen.
+    val debate by (translator?.progress?.collectAsState()
+        ?: remember { mutableStateOf(DebateProgress()) })
     val translationStage by (translator?.stage?.collectAsState()
         ?: remember { mutableStateOf(TranslationStage.IDLE) })
     // Live expression, for the chip only. The reading that actually steers a
@@ -430,19 +438,36 @@ fun CameraScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             HorizontalDivider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
-                            if (isTranslating) {
+                            val hasDebate = debate.candidates.isNotEmpty()
+
+                            // Reset on each new run so the review dropdown does
+                            // not open pre-expanded from the previous sentence.
+                            var reasoningOpen by remember { mutableStateOf(false) }
+                            LaunchedEffect(isTranslating) {
+                                if (isTranslating) reasoningOpen = false
+                            }
+
+                            // Before the agents are seeded, and for a
+                            // single-model translator that has no debate.
+                            if (isTranslating && !hasDebate) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(color = Color(0xFF2196F3), modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    CircularProgressIndicator(
+                                        color = ACCENT,
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                    )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = translationStage.label
                                             .ifEmpty { "Refining grammar..." },
                                         fontFamily = googleSansFlex,
-                                        color = Color(0xFF2196F3),
-                                        fontSize = 14.sp
+                                        color = ACCENT,
+                                        fontSize = 14.sp,
                                     )
                                 }
-                            } else {
+                            }
+
+                            if (!isTranslating) {
                                 translation?.let { t ->
                                     Text(
                                         text = t.ms,
@@ -466,6 +491,45 @@ fun CameraScreen(
                                         )
                                     }
                                 }
+
+                                // The reasoning is secondary once the answer is
+                                // in: one collapsed row below the sentence, so
+                                // the finished state reads as a translation
+                                // rather than a debate log.
+                                if (hasDebate) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .clickable { reasoningOpen = !reasoningOpen }
+                                            .padding(top = 8.dp, bottom = 2.dp),
+                                    ) {
+                                        Text(
+                                            text = if (reasoningOpen) "▾" else "▸",
+                                            color = Color.White.copy(alpha = 0.55f),
+                                            fontSize = 11.sp,
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (reasoningOpen) {
+                                                "Hide reasoning"
+                                            } else {
+                                                "Show reasoning"
+                                            },
+                                            fontFamily = googleSansFlex,
+                                            color = Color.White.copy(alpha = 0.55f),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                    }
+                                }
+                            }
+
+                            // One call site for both phases: live during the run,
+                            // and behind the dropdown afterwards. Rendering it
+                            // from two places would give Compose two call sites
+                            // and reset the per-step expand state between them.
+                            if (hasDebate && (isTranslating || reasoningOpen)) {
+                                DebatePanel(debate, translationStage)
                             }
                         }
                     }
@@ -556,6 +620,10 @@ fun CameraScreen(
                                     Log.e(TAG, "Manual translate error", e)
                                 } finally {
                                     isTranslating = false
+                                    // The manual path needs the same reset as
+                                    // the automatic one: glosses that survive a
+                                    // translation re-trigger it on the next idle.
+                                    signPredictor.prepareForNewSentence()
                                 }
                             }
                         }
@@ -598,5 +666,234 @@ fun CameraScreen(
                 }
             }
         }
+    }
+}
+
+private val ACCENT = Color(0xFF2196F3)
+private val WINNER = Color(0xFF4CAF50)
+private val MUTED = Color.White.copy(alpha = 0.4f)
+
+/** Which step of the debate is currently open. Only ever one at a time. */
+private enum class DebateStep { MODEL_REASONING, JUDGING, NONE }
+
+/**
+ * The debate as two steps that take turns: the models answer, then the judge
+ * decides. Whichever step is live is expanded; the other is a one-line header.
+ *
+ * Which step is open is *derived* from [DebateProgress] rather than tracked
+ * separately, so the accordion cannot drift out of sync with the pipeline. A
+ * manual override sits on top for taps and is cleared whenever the pipeline
+ * moves on, otherwise reopening a step during one translation would leave the
+ * accordion stuck for the next.
+ */
+@Composable
+private fun DebatePanel(debate: DebateProgress, stage: TranslationStage) {
+    val auto = when {
+        !debate.isActive -> DebateStep.NONE
+        !debate.allResolved -> DebateStep.MODEL_REASONING
+        debate.verdict == null -> DebateStep.JUDGING
+        else -> DebateStep.NONE
+    }
+
+    var override by remember { mutableStateOf<DebateStep?>(null) }
+    // Clearing on every change of `auto` is what keeps a tap from outliving the
+    // step it was made in.
+    LaunchedEffect(auto) { override = null }
+    val open = override ?: auto
+
+    val answered = debate.candidates.count { it.sentence != null }
+    val winner = debate.verdict?.let { debate.candidates.getOrNull(it.choice) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 220.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        DebateStepRow(
+            index = 1,
+            title = "Model Reasoning",
+            expanded = open == DebateStep.MODEL_REASONING,
+            active = auto == DebateStep.MODEL_REASONING,
+            summary = when {
+                debate.candidates.isEmpty() -> ""
+                answered == debate.candidates.size -> "${debate.candidates.size} models"
+                else -> "$answered of ${debate.candidates.size}"
+            },
+            onToggle = {
+                override = if (open == DebateStep.MODEL_REASONING) {
+                    DebateStep.NONE
+                } else {
+                    DebateStep.MODEL_REASONING
+                }
+            },
+        ) {
+            debate.candidates.forEachIndexed { index, candidate ->
+                ModelRow(candidate, isWinner = debate.verdict?.choice == index)
+            }
+        }
+
+        DebateStepRow(
+            index = 2,
+            title = "Judging",
+            expanded = open == DebateStep.JUDGING,
+            active = auto == DebateStep.JUDGING,
+            summary = winner?.shortName.orEmpty(),
+            onToggle = {
+                override = if (open == DebateStep.JUDGING) DebateStep.NONE else DebateStep.JUDGING
+            },
+        ) {
+            if (debate.verdict == null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 20.dp),
+                ) {
+                    CircularProgressIndicator(
+                        color = ACCENT,
+                        modifier = Modifier.size(12.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stage.label.ifEmpty { "Weighing interpretations…" },
+                        fontFamily = googleSansFlex,
+                        color = ACCENT,
+                        fontSize = 12.sp,
+                    )
+                }
+            } else {
+                Column(modifier = Modifier.padding(start = 20.dp)) {
+                    Text(
+                        text = "★ ${winner?.shortName.orEmpty()}",
+                        fontFamily = googleSansFlex,
+                        color = WINNER,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    winner?.sentence?.let {
+                        Text(
+                            text = it,
+                            fontFamily = googleSansFlex,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 14.sp,
+                            lineHeight = 19.sp,
+                            modifier = Modifier.padding(top = 1.dp),
+                        )
+                    }
+                    debate.verdict?.reason?.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            text = it,
+                            fontFamily = googleSansFlex,
+                            color = Color(0xFFFFB74D).copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** One numbered step: a tappable header, and a body shown only when expanded. */
+@Composable
+private fun DebateStepRow(
+    index: Int,
+    title: String,
+    expanded: Boolean,
+    active: Boolean,
+    summary: String,
+    onToggle: () -> Unit,
+    body: @Composable () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(vertical = 4.dp),
+        ) {
+            Text(
+                text = if (expanded) "▾" else "▸",
+                color = if (active) ACCENT else MUTED,
+                fontSize = 11.sp,
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "$index. $title",
+                fontFamily = googleSansFlex,
+                color = if (active) ACCENT else Color.White.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+            )
+            if (!expanded && summary.isNotBlank()) {
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = summary,
+                    fontFamily = googleSansFlex,
+                    color = MUTED,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(modifier = Modifier.padding(bottom = 4.dp)) { body() }
+        }
+    }
+}
+
+/** One model's row: pending, answered, or failed. */
+@Composable
+private fun ModelRow(candidate: CandidateView, isWinner: Boolean) {
+    Column(modifier = Modifier.padding(bottom = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (candidate.isPending) {
+                CircularProgressIndicator(
+                    color = ACCENT,
+                    modifier = Modifier.size(12.dp),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text(
+                    text = if (candidate.failed) "×" else if (isWinner) "★" else "•",
+                    color = when {
+                        candidate.failed -> MUTED
+                        isWinner -> WINNER
+                        else -> ACCENT
+                    },
+                    fontSize = 13.sp,
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = candidate.shortName,
+                fontFamily = googleSansFlex,
+                color = if (isWinner) WINNER else Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Medium,
+            )
+        }
+        Text(
+            text = when {
+                candidate.failed -> "no answer"
+                candidate.sentence == null -> "thinking…"
+                else -> candidate.sentence
+            },
+            fontFamily = googleSansFlex,
+            color = if (candidate.sentence == null || candidate.failed) {
+                MUTED
+            } else {
+                Color.White.copy(alpha = 0.9f)
+            },
+            fontSize = 14.sp,
+            lineHeight = 19.sp,
+            modifier = Modifier.padding(start = 20.dp, top = 1.dp),
+        )
     }
 }
