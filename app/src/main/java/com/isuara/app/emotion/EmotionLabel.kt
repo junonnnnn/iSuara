@@ -28,6 +28,8 @@ enum class EmotionLabel(
     val descriptorMs: String,
     /** English descriptor handed to the translator prompt. */
     val descriptorEn: String,
+    /** Visual emoji representation of the emotion. */
+    val emoji: String = "",
     /**
      * Absolute pitch for the offline `TextToSpeech` fallback; 1.0 is the
      * engine's normal pitch.
@@ -49,12 +51,14 @@ enum class EmotionLabel(
     ANGER(
         arousal = 0.85f, valence = -0.70f,
         descriptorMs = "marah", descriptorEn = "anger",
+        emoji = "😠",
         pitch = 0.92f, rateScale = 1.12f,
         styleDirective = "Say this angrily and firmly, with clipped, forceful delivery.",
     ),
     CONTEMPT(
         arousal = 0.45f, valence = -0.40f,
         descriptorMs = "meluat", descriptorEn = "contempt",
+        emoji = "😒",
         pitch = 0.95f, rateScale = 0.95f,
         styleDirective = "Say this with cold, dismissive disdain.",
     ),
@@ -64,36 +68,42 @@ enum class EmotionLabel(
         // shouted-colloquial register that fear and anger do.
         arousal = 0.55f, valence = -0.60f,
         descriptorMs = "jijik", descriptorEn = "disgust",
+        emoji = "🤢",
         pitch = 0.90f, rateScale = 0.95f,
         styleDirective = "Say this with revulsion, as if recoiling from something.",
     ),
     FEAR(
         arousal = 0.90f, valence = -0.80f,
         descriptorMs = "takut", descriptorEn = "fear",
+        emoji = "😨",
         pitch = 1.18f, rateScale = 1.25f,
         styleDirective = "Say this urgently and fearfully, fast, with a strained, breathless voice.",
     ),
     HAPPINESS(
         arousal = 0.70f, valence = 0.80f,
         descriptorMs = "gembira", descriptorEn = "happiness",
+        emoji = "😊",
         pitch = 1.12f, rateScale = 1.05f,
         styleDirective = "Say this warmly and brightly, with an audible smile.",
     ),
     NEUTRAL(
         arousal = 0.25f, valence = 0.0f,
         descriptorMs = "neutral", descriptorEn = "neutral",
+        emoji = "",
         pitch = 1.0f, rateScale = 1.0f,
         styleDirective = "Say this in a calm, clear, matter-of-fact voice.",
     ),
     SADNESS(
         arousal = 0.30f, valence = -0.60f,
         descriptorMs = "sedih", descriptorEn = "sadness",
+        emoji = "😢",
         pitch = 0.88f, rateScale = 0.82f,
         styleDirective = "Say this softly and heavily, slowly, with a downcast tone.",
     ),
     SURPRISE(
         arousal = 0.80f, valence = 0.20f,
         descriptorMs = "terkejut", descriptorEn = "surprise",
+        emoji = "😲",
         pitch = 1.20f, rateScale = 1.10f,
         styleDirective = "Say this with sudden surprise, sharp and raised in pitch.",
     );
