@@ -186,7 +186,7 @@ class DebateTranslator(
  */
 fun geminiDebate(modelId: String = GeminiTranslator.DEFAULT_MODEL): DebateTranslator {
     val judgeSlot = AtomicInteger(0)
-    val agentLabels = listOf("Agent 1 (Key 1)", "Agent 2 (Key 2)", "Agent 3 (Key 3)")
+    val agentLabels = listOf("DeepSeek-V4-Flash", "MiniMax-M2.7", "Kimi-K2.6")
     return DebateTranslator(
         agents = (0..2).map { i ->
             GeminiTranslator(
