@@ -33,7 +33,7 @@ local.properties
 .kotlin/
 
 # Test screen captures & artifacts
-avatar_*.png
-camera_*.png
+*.png
+!avatar.png
 *.tmp
 
