@@ -24,6 +24,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 class SpeechRouter(
     private val local: TtsService,
     private val cloud: GeminiTtsService = GeminiTtsService(),
+    var preferLocal: Boolean = true,
 ) {
 
     companion object {
@@ -55,7 +56,7 @@ class SpeechRouter(
         if (text.isBlank()) return
         stop()
 
-        if (!cloud.isConfigured) {
+        if (preferLocal || !cloud.isConfigured) {
             local.speak(text, language, fallbackText, emotion)
             return
         }
