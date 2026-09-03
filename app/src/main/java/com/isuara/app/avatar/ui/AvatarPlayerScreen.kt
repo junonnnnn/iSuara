@@ -9,8 +9,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -35,63 +33,59 @@ fun AvatarPlayerScreen(
     val focusManager = LocalFocusManager.current
 
     var glView by remember { mutableStateOf<AvatarGLSurfaceView?>(null) }
-    var isPlaying by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
     var activeSignKey by remember { mutableStateOf("terima_kasih") }
 
-    // Play helper
+    // Play helper - plays once from start to finish (no looping)
     fun triggerPlay(query: String, startPlaying: Boolean = true) {
-        if (query.isBlank()) return
+        val effectiveQuery = if (query.isNotBlank()) query else activeSignKey
+        if (effectiveQuery.isBlank()) return
         focusManager.clearFocus()
-        val clean = query.trim().lowercase().replace(" ", "_")
+        val clean = effectiveQuery.trim().lowercase().replace(" ", "_")
 
         // 1. Direct Catalog Match
         val directMatch = MotionRepository.CATALOG.find {
             it.key.equals(clean, ignoreCase = true) ||
-            it.title.equals(query.trim(), ignoreCase = true)
+            it.title.equals(effectiveQuery.trim(), ignoreCase = true)
         }
 
         if (directMatch != null) {
             activeSignKey = directMatch.key
             val motion = repository.loadMotion(directMatch.key)
             if (motion != null) {
+                motionPlayer.isLooping = false
                 motionPlayer.setMotion(motion, autoPlay = startPlaying)
-                motionPlayer.isLooping = true
-                isPlaying = startPlaying
             }
             return
         }
 
         // 2. Multi-word Sentence Synthesis
-        val parts = query.trim().lowercase().split("\\s+".toRegex())
+        val parts = effectiveQuery.trim().lowercase().split("\\s+".toRegex())
         val synthesized = repository.synthesizeSentence(parts)
         if (synthesized != null) {
             activeSignKey = clean
+            motionPlayer.isLooping = false
             motionPlayer.setMotion(synthesized, autoPlay = startPlaying)
-            motionPlayer.isLooping = true
-            isPlaying = startPlaying
         } else {
             // Fallback: search partial
-            val fallback = repository.searchVocabulary(query).firstOrNull()
+            val fallback = repository.searchVocabulary(effectiveQuery).firstOrNull()
             if (fallback != null) {
                 activeSignKey = fallback.key
                 val motion = repository.loadMotion(fallback.key)
                 if (motion != null) {
+                    motionPlayer.isLooping = false
                     motionPlayer.setMotion(motion, autoPlay = startPlaying)
-                    motionPlayer.isLooping = true
-                    isPlaying = startPlaying
                 }
             }
         }
     }
 
-    // Load initial motion on start (paused ready state, no auto-play)
+    // Load initial motion on start (paused ready state, no auto-play, no looping)
     LaunchedEffect(Unit) {
         val motion = repository.loadMotion("terima_kasih")
         if (motion != null) {
+            motionPlayer.isLooping = false
             motionPlayer.setMotion(motion, autoPlay = false)
-            motionPlayer.isLooping = true
-            isPlaying = false
         }
     }
 
@@ -108,7 +102,7 @@ fun AvatarPlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        // ── 2. Bottom Minimalist Input Bar & Controls ──
+        // ── 2. Bottom Minimalist Input Bar & Send Button ──
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -117,7 +111,7 @@ fun AvatarPlayerScreen(
                 .border(1.dp, Color(0x3330363D), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            // Input Row: TextField + Green Send Arrow + Play/Pause Button on the right
+            // Input Row: TextField + Green Send Arrow
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -150,7 +144,7 @@ fun AvatarPlayerScreen(
                     shape = RoundedCornerShape(25.dp)
                 )
 
-                // Send Arrow Button
+                // Send Arrow Button (plays the animation once)
                 IconButton(
                     onClick = { triggerPlay(inputText, startPlaying = true) },
                     modifier = Modifier
@@ -162,24 +156,6 @@ fun AvatarPlayerScreen(
                         contentDescription = "Send",
                         tint = Color.White,
                         modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                // Play / Pause Button directly to the right side of Send Arrow
-                IconButton(
-                    onClick = {
-                        motionPlayer.togglePlayPause()
-                        isPlaying = motionPlayer.isPlaying
-                    },
-                    modifier = Modifier
-                        .size(46.dp)
-                        .background(Color(0xFF1F6FEB), CircleShape)
-                ) {
-                    Icon(
-                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
