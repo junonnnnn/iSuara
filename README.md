@@ -7,7 +7,7 @@
 
 ## 1. Repository Overview & Team Introduction
 
-Welcome to the official repository for **iSuara**, an Edge-AI Android application built to provide real-time, pocket-sized translation of Bahasa Isyarat Malaysia (BIM) into Malay, English, Mandarin and Tamil. This repository contains the complete Android Studio project, including the native Kotlin UI, MediaPipe vision extractors, LiteRT inference pipeline, and the multi-agent GonkaRouter translation layer.
+Welcome to the official repository for **iSuara**, an Edge-AI Android application built to provide real-time, pocket-sized translation of Bahasa Isyarat Malaysia (BIM) into Malay, English, Mandarin and Tamil. This repository contains the complete Android Studio project, including the native Kotlin UI, MediaPipe vision extractors, LiteRT inference pipeline, and the multi-agent cloud translation layer.
 
 **Team Name:** sudo rm -rf /
 
@@ -51,7 +51,8 @@ iSuara is a real-time, native Android application that bridges the communication
 * **Android Studio & Kotlin Native:** The foundation of our zero-copy architecture, enabling direct access to camera hardware (CameraX) and the device's GPU without the bridge-latency of cross-platform frameworks.
 * **Google MediaPipe:** Handles hardware-parallelized skeletal extraction (Pose on GPU, Hands on CPU) of 75 keypoints per frame.
 * **Google LiteRT:** Runs our custom int8-quantized BiLSTM model locally, taking only ~1-3ms per inference.
-* **GonkaRouter (DeepSeek V4-Flash, MiniMax M2.7, Kimi K2.6):** Acts as our cloud-based semantic brain, transforming raw BIM glosses (e.g., "Market + I + Go") into natural sentences (e.g., "Saya pergi ke pasar"). All three models answer the same prompt in parallel and DeepSeek adjudicates.
+* **Cloud LLM layer:** Acts as our cloud-based semantic brain, transforming raw BIM glosses (e.g., "Market + I + Go") into natural sentences (e.g., "Saya pergi ke pasar"). Three agents answer the same prompt in parallel and a fourth call adjudicates.
+* **Expressive cloud TTS:** Speaks the result with an emotion the signer's face actually showed, taking a natural-language delivery instruction that the on-device voice cannot.
 * **Google Text-to-Speech (TTS):** The offline native Android TTS engine used to execute the final audio output.
 * **Google Colab:** Our primary environment for model training and evaluating quantitative analytics via Matplotlib.
 
@@ -66,9 +67,9 @@ iSuara is a real-time, native Android application that bridges the communication
 
 ### System Architecture
 
-iSuara utilizes a **Decoupled Edge-Cloud Pipeline**. Heavy visual processing (tracking and sign prediction) happens 100% offline on the Edge, ensuring zero-latency and total user privacy. The Cloud (GonkaRouter) is triggered only for semantic translation of text payloads (<1KB) — no video ever leaves the device.
+iSuara utilizes a **Decoupled Edge-Cloud Pipeline**. Heavy visual processing (tracking and sign prediction) happens 100% offline on the Edge, ensuring zero-latency and total user privacy. The cloud stage is triggered only for semantic translation of text payloads (<1KB) — no video ever leaves the device.
 
-The cloud stage is a four-call debate: three models translate the same glosses concurrently, then a judge model is shown the candidates and returns the index of the best one. The judge picks an index rather than writing its own sentence, so the answer is always something an agent actually proposed and the four languages stay mutually consistent. If some agents fail the judge decides among the survivors; if all fail, the app falls back to displaying and speaking the raw glosses.
+The cloud stage is a four-call debate: three agents translate the same glosses concurrently, then a judge is shown the candidates and returns the index of the best one. The agents run one API key each, because the fan-out is simultaneous and sharing a key would put every request on one per-minute quota. The judge picks an index rather than writing its own sentence, so the answer is always something an agent actually proposed and the four languages stay mutually consistent. If some agents fail the judge decides among the survivors; if all fail, the app falls back to displaying and speaking the raw glosses.
 
 ### Workflow
 
@@ -101,7 +102,7 @@ The cloud stage is a four-call debate: three models translate the same glosses c
 
 * **Challenge 4: Ambiguous Gloss Ordering**
 * *Problem:* BIM glosses arrive as a loosely ordered bag of words, and a single model just commits to one reading with no signal about how confident that reading is.
-* *Solution:* We fan the same glosses out to **three different models** and have a fourth call adjudicate. On genuinely ambiguous input the models disagree in useful ways; on clear input they converge, which is itself a signal. The cost is latency — the pipeline waits for the slowest model — so this is a quality-over-speed tradeoff, not a free win.
+* *Solution:* We fan the same glosses out to **three concurrent agents** and have a fourth call adjudicate. On genuinely ambiguous input the agents disagree in useful ways; on clear input they converge, which is itself a signal. Being one model sampled three times, this is a self-consistency ensemble rather than a comparison of models: it catches a shaky reading, but not a misreading all three happen to share. The cost is latency — the pipeline waits for the slowest agent — so this is a quality-over-speed tradeoff, not a free win.
 
 ## 7. Installation & Setup
 
@@ -111,14 +112,21 @@ The cloud stage is a four-call debate: three models translate the same glosses c
 * JDK 17+
 * Android device with API 26+ (Android 8.0)
 
-### 2. GonkaRouter API Key
+### 2. API Keys
 
-Create a `local.properties` file in the project root and add your key:
+Create a `local.properties` file in the project root and add your keys:
 
 ```properties
-GONKA_API_KEY=sk-xxxxxx
-
+GEMINI_API_KEY=xxxxxx
+GEMINI_API_KEY_2=xxxxxx
+GEMINI_API_KEY_3=xxxxxx
 ```
+
+Only the first is required. The others are worth adding for two reasons: the
+debate runs **one agent per key**, so three keys means a three-agent debate
+while one key means a single unjudged answer; and the speech endpoint
+rate-limits hard on the free tier, so it rotates keys to keep talking.
+Translation and speech use separate quotas, so they do not compete.
 
 *Translation works without this — the app falls back to showing and speaking the raw detected glosses.*
 

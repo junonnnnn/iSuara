@@ -34,7 +34,7 @@ class JudgeChoiceParsingTest {
         assertEquals(2, choice)
     }
 
-    /** MiniMax leaked a <think> monologue on 10/10 benchmark runs. */
+    /** A previous provider's MiniMax agent leaked <think> on 10/10 runs. */
     @Test
     fun `ignores a leading reasoning monologue`() {
         val (choice, _) = TranslationParsing.extractChoice(

@@ -5,9 +5,9 @@ import com.isuara.app.emotion.EmotionReading
 /**
  * Prompts shared by every debating model.
  *
- * Kept in one place so all three agents are asked for exactly the same thing.
- * That is what makes the comparison meaningful: any difference between
- * candidates is attributable to the model, not to a differing prompt.
+ * Kept in one place so every agent is asked for exactly the same thing. That is
+ * what makes the comparison meaningful: a difference between candidates comes
+ * from the agent, and a differing prompt would make it uninterpretable.
  *
  * The observed facial expression goes in the per-request user turn rather than
  * in [SYSTEM], for the same reason: the system prompt stays byte-identical
@@ -95,9 +95,10 @@ object TranslationPrompts {
         You are evaluating candidate translations of Bahasa Isyarat Malaysia
         (BIM) sign glosses into natural Bahasa Melayu.
 
-        You will be given the original glosses and several numbered candidate
-        sentences. Choose the ONE candidate that best represents what the
-        signer most likely meant.
+        You will be given the original glosses and several candidate sentences,
+        each numbered and attributed to the interpreter that produced it. Choose
+        the ONE candidate that best represents what the signer most likely
+        meant.
 
         Judge on: faithfulness to the glosses, natural Malay grammar, and
         plausibility as something a person would actually say. Prefer a
@@ -111,21 +112,42 @@ object TranslationPrompts {
         You must choose one of the given candidates. Do NOT write your own
         sentence.
 
+        In your reason, refer to an interpreter by NAME, never by its number —
+        the number is only there so you can point at your choice unambiguously.
+
         Return ONLY a single JSON object. No markdown, no code fences, no
         commentary, no reasoning:
-        {"choice": <index of the best candidate>, "reason": "<one short sentence>"}
+        {"choice": <number of the best candidate>, "reason": "<one short sentence>"}
+
+        Example: {"choice": 1, "reason": "MiniMax M2.7 keeps the urgency without inventing a reason for it."}
     """.trimIndent()
 
-    /** Builds the judge's user turn from the candidates' Malay sentences. */
+    /**
+     * Builds the judge's user turn from the candidates' Malay sentences.
+     *
+     * Each line carries both a number and the interpreter's name from [labels].
+     * The number stays because the verdict is an index — it is what gets
+     * bounds-checked and what selects the winning candidate — while the name is
+     * what the judge is told to quote in its reason, because that reason is
+     * shown to the user and "candidate 1" means nothing on screen.
+     *
+     * [labels] is positional against [candidates]. A caller holding a wider set
+     * of agents must pass only the labels of the ones that actually answered,
+     * or the names land on the wrong sentences.
+     */
     fun judgeTurn(
         words: List<String>,
         candidates: List<Translation>,
+        labels: List<String> = emptyList(),
         emotion: EmotionReading? = null,
     ): String = buildString {
         append("Glosses: $words")
         emotionLine(emotion)?.let { append("\n").append(it) }
         append("\n\nCandidates:\n")
-        append(candidates.mapIndexed { i, c -> "$i. ${c.ms}" }.joinToString("\n"))
+        append(candidates.mapIndexed { i, c ->
+            val name = labels.getOrNull(i)?.takeIf { it.isNotBlank() }
+            if (name != null) "$i. $name: ${c.ms}" else "$i. ${c.ms}"
+        }.joinToString("\n"))
         append("\n\nOutput:")
     }
 }

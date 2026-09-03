@@ -15,11 +15,13 @@ object TranslationParsing {
     /**
      * The last complete, brace-balanced `{...}` object in [raw], or null.
      *
-     * Deliberately not "first { to last }": MiniMax leaked a visible <think>
-     * monologue on 10 of 10 benchmark runs, and if that prose contains a brace
-     * the naive span swallows it and parsing fails — which would silently drop
-     * that model out of the debate. A single pass tracking string state, escapes
-     * and depth finds the real object regardless of what precedes it.
+     * Deliberately not "first { to last }": a previous provider's MiniMax agent
+     * leaked a visible <think> monologue on 10 of 10 benchmark runs, and if that
+     * prose contains a brace the naive span swallows it and parsing fails —
+     * silently dropping that model out of the debate. A single pass tracking
+     * string state, escapes and depth finds the real object regardless of what
+     * precedes it. Kept now the provider has changed: it costs nothing, and any
+     * model may prepend prose.
      *
      * Takes the LAST object so that a model which restates the prompt's example
      * before answering does not have its example picked as the answer.

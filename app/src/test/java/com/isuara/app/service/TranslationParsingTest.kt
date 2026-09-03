@@ -36,7 +36,7 @@ class TranslationParsingTest {
         assertEquals("我饿了。", t.zh)
     }
 
-    /** MiniMax leaked a <think> monologue on 10/10 benchmark runs. */
+    /** A previous provider's MiniMax agent leaked <think> on 10/10 runs. */
     @Test
     fun `ignores a leading reasoning monologue`() {
         val t = TranslationParsing.extractTranslation(
@@ -71,7 +71,8 @@ class TranslationParsingTest {
 
     /**
      * The naive "first { to last }" span broke here: a brace inside the
-     * reasoning swallowed the whole thing. MiniMax leaks reasoning on every
+     * reasoning swallowed the whole thing. A previous provider's MiniMax agent
+     * leaked reasoning on every
      * run, so this is the case that keeps it in the debate.
      */
     @Test

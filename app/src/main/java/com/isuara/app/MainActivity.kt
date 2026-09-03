@@ -28,7 +28,8 @@ import com.isuara.app.emotion.EmotionClassifier
 import com.isuara.app.emotion.EmotionTracker
 import com.isuara.app.ml.SignPredictor
 import com.isuara.app.service.SpeechRouter
-import com.isuara.app.service.gonkaDebate
+import com.isuara.app.service.GeminiKeys
+import com.isuara.app.service.geminiDebate
 import com.isuara.app.service.LanguagePreference
 import com.isuara.app.service.Language
 import com.isuara.app.service.Translator
@@ -91,22 +92,18 @@ class MainActivity : ComponentActivity() {
             Toast.makeText(this, "Model load failed: ${e.message}", Toast.LENGTH_LONG).show()
         }
 
-        // Translator (optional — needs an API key). The key itself is read by
-        // GonkaClient; this only decides whether the feature is enabled.
-        val apiKey = try {
-            BuildConfig.GONKA_API_KEY
-        } catch (_: Exception) {
-            ""
-        }
-        translator = if (apiKey.isNotBlank() && apiKey != "\"\"") {
+        // Translator (optional — needs at least one Gemini API key). One agent
+        // per key: the debate fans out concurrently, so sharing a key would put
+        // every request on a single per-minute quota.
+        translator = if (GeminiKeys.isConfigured) {
             try {
-                gonkaDebate()
+                geminiDebate()
             } catch (e: Exception) {
                 Log.w(TAG, "Translator init failed: ${e.message}")
                 null
             }
         } else {
-            Log.w(TAG, "No GonkaRouter API key — translate feature disabled")
+            Log.w(TAG, "No Gemini API key — translate feature disabled")
             null
         }
 

@@ -13,17 +13,17 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 
 /**
- * DebateTranslator — asks three interpreters with different stances, then has a
+ * DebateTranslator — asks several interpreters the same question, then has a
  * judge pick the best answer.
  *
  * BIM glosses arrive loosely ordered and the mapping to a sentence is genuinely
- * ambiguous, so a single model just commits to one reading. Three stances
- * disagree in useful ways and a judge resolves them. On unambiguous glosses the
- * three converge, which is correct but means the cost buys nothing there.
+ * ambiguous, so a single answer just commits to one reading. Several answers
+ * disagree in useful ways and a judge resolves them. On unambiguous glosses they
+ * converge, which is correct but means the cost buys nothing there.
  *
  * Takes ready-made [agents] and a raw [judgeCall] rather than constructing them,
  * which keeps it independent of any one provider and testable without network.
- * Use [gonkaDebate] rather than constructing it directly.
+ * Use [geminiDebate] rather than constructing it directly.
  *
  * The judge returns an INDEX, not a sentence. That way the result is always
  * something an agent actually proposed — the judge cannot invent a fourth
@@ -34,10 +34,10 @@ import kotlinx.coroutines.withContext
  * Costs four calls per translation. Wall clock is max(agents) + judge.
  */
 class DebateTranslator(
-    private val agents: List<Translator>,
+    internal val agents: List<Translator>,
     private val judgeCall: suspend (system: String, user: String) -> String,
     /** Display names, parallel to [agents]. Shown while each is still pending. */
-    private val agentLabels: List<String> = agents.indices.map { "agent $it" },
+    internal val agentLabels: List<String> = agents.indices.map { "agent $it" },
 ) : Translator {
 
     companion object {
@@ -89,12 +89,16 @@ class DebateTranslator(
             _stage.value = TranslationStage.CONSULTING
 
             // Each agent publishes on completion rather than the whole set
-            // waiting on the slowest — the measured spread across the three
-            // models was ~9s to ~126s, so batching means minutes of dead air.
+            // waiting on the slowest, so one slow agent cannot hold the others'
+            // answers off the screen.
             val results = coroutineScope {
                 agents.mapIndexed { i, agent ->
                     async {
-                        val result = runCatching { agent.translate(words, emotion) }.getOrNull()
+                        val result = runCatching { agent.translate(words, emotion) }
+                            .onFailure {
+                                Log.e(TAG, "candidate[$i] ${agentLabels.getOrNull(i)} failed: ${it.message}", it)
+                            }
+                            .getOrNull()
                         publish(i, result?.ms, failed = result == null)
                         Log.i(TAG, "candidate[$i] ${agentLabels.getOrNull(i)}: " +
                             (result?.ms ?: "FAILED"))
@@ -121,7 +125,12 @@ class DebateTranslator(
 
             // A failed judge must not discard candidates we already hold; an
             // arbitrary but valid answer beats falling back to raw glosses.
-            val verdict = runCatching { judge(words, candidates, emotion) }
+            // Only the survivors' labels, positionally aligned with the
+            // candidates the judge is shown. slotOf maps each surviving
+            // candidate back to the agent that produced it, so a failed agent
+            // cannot shift the names onto the wrong sentences.
+            val judgeLabels = slotOf.map { agentLabels.getOrElse(it) { "agent $it" } }
+            val verdict = runCatching { judge(words, candidates, judgeLabels, emotion) }
                 .onFailure { Log.w(TAG, "judge failed, using first candidate: ${it.message}") }
                 .getOrNull()
 
@@ -154,12 +163,13 @@ class DebateTranslator(
     private suspend fun judge(
         words: List<String>,
         candidates: List<Translation>,
+        labels: List<String>,
         emotion: EmotionReading?,
     ): JudgeVerdict =
         withContext(Dispatchers.IO) {
             val raw = judgeCall(
                 TranslationPrompts.JUDGE,
-                TranslationPrompts.judgeTurn(words, candidates, emotion),
+                TranslationPrompts.judgeTurn(words, candidates, labels, emotion),
             )
             val verdict = TranslationParsing.extractChoice(raw, candidates.size)
             Log.i(TAG, "judge chose [${verdict.choice}] " +
@@ -167,22 +177,3 @@ class DebateTranslator(
             verdict
         }
 }
-
-/**
- * The multi-agent debate over GonkaRouter.
- *
- * Three different models answer the same glosses with the same prompt, so any
- * disagreement is attributable to the model rather than to a differing stance.
- * DeepSeek judges: it is the fastest and cleanest of the three and sits on the
- * critical path once the agents finish.
- *
- * Note this waits for all three — wall clock tracks the slowest model, which
- * benchmarked as Kimi.
- */
-fun gonkaDebate() = DebateTranslator(
-    agents = GonkaTranslator.AGENT_MODELS.map { GonkaTranslator(it) },
-    judgeCall = { system, user ->
-        gonkaComplete(GonkaTranslator.JUDGE_MODEL, system, user)
-    },
-    agentLabels = GonkaTranslator.AGENT_MODELS,
-)

@@ -8,7 +8,11 @@ data class JudgeVerdict(
 
 /** One agent's slot in the debate, from pending through to answered or failed. */
 data class CandidateView(
-    /** The model id, e.g. `deepseek-ai/DeepSeek-V4-Flash-0731`. */
+    /**
+     * The agent's display label, from [GeminiTranslator.AGENT_LABELS].
+     *
+     * Display text, not a model id — never match on it to route a call.
+     */
     val model: String,
     /** Null while the model is still working. */
     val sentence: String? = null,
@@ -16,7 +20,11 @@ data class CandidateView(
 ) {
     val isPending: Boolean get() = sentence == null && !failed
 
-    /** Just the model name, without the vendor prefix, for display. */
+    /**
+     * Display form of [model]. Strips a `vendor/` prefix when there is one,
+     * which the current labels do not have — kept so an id-style label still
+     * renders sensibly if a provider with slash-qualified ids is added back.
+     */
     val shortName: String get() = model.substringAfterLast('/')
 }
 
@@ -25,8 +33,8 @@ data class CandidateView(
  *
  * Exists because [TranslationStage] is a flat enum and cannot carry the
  * candidates. The point is that agents are revealed **as they arrive** rather
- * than after the slowest finishes — with a measured spread from ~9s to ~126s
- * across the three models, batching the reveal means minutes of dead air.
+ * than after the slowest finishes, so one slow agent cannot hold the others'
+ * answers off the screen.
  */
 data class DebateProgress(
     val stage: TranslationStage = TranslationStage.IDLE,

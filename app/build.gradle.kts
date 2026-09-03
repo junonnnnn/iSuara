@@ -16,23 +16,23 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        // 1. Load the local.properties file manually using the imported Properties class
+        // Load local.properties manually; API keys live there, not in git.
         val localProperties = Properties()
         val localPropertiesFile = rootProject.file("local.properties")
         if (localPropertiesFile.exists()) {
             localPropertiesFile.inputStream().use { localProperties.load(it) }
         }
 
-        // 2. Extract the key from the loaded properties object
-        val gonkaKey = localProperties.getProperty("GONKA_API_KEY") ?: ""
-
-        // 3. Define the build config field so the app can see it
-        buildConfigField("String", "GONKA_API_KEY", "\"$gonkaKey\"")
-
-        // Gemini keys for expressive TTS, comma-joined. Several are supported
-        // because the TTS endpoint rate-limits hard on this tier — measured 429s
-        // on 3 of 5 consecutive calls — and rotating keys is what keeps a live
-        // demo speaking. Numbered keys are optional; the unsuffixed one is not.
+        // Gemini keys, comma-joined. They serve both features that call the
+        // API: expressive TTS and translation.
+        //
+        // Several are wanted for two separate reasons. TTS rotates them because
+        // that endpoint rate-limits hard on this tier — measured 429s on 3 of 5
+        // consecutive calls — and rotation is what keeps a live demo speaking.
+        // The debate needs them structurally: it runs one agent per key and
+        // fans out concurrently, so with a single key every agent would compete
+        // for one per-minute quota. Fewer keys means fewer agents, not failure.
+        // Numbered keys are optional; the unsuffixed one is not.
         val geminiKeys = listOfNotNull(
             localProperties.getProperty("GEMINI_API_KEY"),
             localProperties.getProperty("GEMINI_API_KEY_2"),
@@ -120,10 +120,6 @@ dependencies {
     // ONNX weights, and converting them would add a fragile offline step whose
     // numerical drift we would have to police ourselves.
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
-
-    // GonkaRouter — reached with the Anthropic SDK (GonkaRouter speaks the
-    // Messages API); base URL is overridden in service/GonkaClient.kt
-    implementation("com.anthropic:anthropic-java:2.59.0")
 
     // Kotlin coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")

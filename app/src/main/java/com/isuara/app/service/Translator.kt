@@ -52,10 +52,10 @@ data class Translation(
  * Implementations throw on failure rather than returning an error string, so a
  * caller can tell a real translation from a failure without inspecting the text.
  *
- * The planned multi-model voting layer will implement this over several
- * delegates. Since delegates can now disagree per language, the simplest rule
- * is to vote on [Translation.ms] and take the winning delegate's whole result,
- * keeping the three languages mutually consistent.
+ * [DebateTranslator] implements this over several delegates. Because delegates
+ * can disagree per language, its judge picks one delegate's whole result rather
+ * than voting field by field, which keeps the four languages mutually
+ * consistent.
  */
 interface Translator {
     /**

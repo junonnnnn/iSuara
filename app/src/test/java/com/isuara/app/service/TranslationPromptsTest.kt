@@ -55,10 +55,39 @@ class TranslationPromptsTest {
             Translation("Tolong! Cepat panggil polis!", "Help! Quick!", "救命!", "உதவி!"),
         )
         val turn = TranslationPrompts.judgeTurn(
-            glosses, candidates, reading(EmotionLabel.FEAR, 0.9f),
+            glosses, candidates, emotion = reading(EmotionLabel.FEAR, 0.9f),
         )
         assertTrue(turn, turn.contains("Observed facial expression: fear"))
         assertTrue(turn, turn.contains("0. Tolong polis."))
+        assertTrue(turn, turn.contains("1. Tolong! Cepat panggil polis!"))
+    }
+
+    /**
+     * The number is what the verdict indexes on, so it has to survive; the name
+     * is what the judge is told to quote, and it is what reaches the screen.
+     */
+    @Test
+    fun `candidates are attributed to the interpreter that produced them`() {
+        val candidates = listOf(
+            Translation("Tolong polis.", "Help police.", "帮助", "உதவி"),
+            Translation("Tolong! Cepat panggil polis!", "Help! Quick!", "救命!", "உதவி!"),
+        )
+        val turn = TranslationPrompts.judgeTurn(
+            glosses, candidates, listOf("DeepSeek V4-Flash", "MiniMax M2.7"),
+        )
+        assertTrue(turn, turn.contains("0. DeepSeek V4-Flash: Tolong polis."))
+        assertTrue(turn, turn.contains("1. MiniMax M2.7: Tolong! Cepat panggil polis!"))
+    }
+
+    /** Fewer labels than candidates must degrade to the number, not misattribute. */
+    @Test
+    fun `a candidate with no label keeps its number alone`() {
+        val candidates = listOf(
+            Translation("Tolong polis.", "Help police.", "帮助", "உதவி"),
+            Translation("Tolong! Cepat panggil polis!", "Help! Quick!", "救命!", "உதவி!"),
+        )
+        val turn = TranslationPrompts.judgeTurn(glosses, candidates, listOf("DeepSeek V4-Flash"))
+        assertTrue(turn, turn.contains("0. DeepSeek V4-Flash: Tolong polis."))
         assertTrue(turn, turn.contains("1. Tolong! Cepat panggil polis!"))
     }
 
