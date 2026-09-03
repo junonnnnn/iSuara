@@ -6,6 +6,10 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -37,12 +41,17 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.isuara.app.R
+import com.isuara.app.emotion.EmotionReading
+import com.isuara.app.emotion.EmotionTracker
+import com.isuara.app.emotion.ui.EmotionChip
 import com.isuara.app.ml.SignPredictor
 import com.isuara.app.service.Language
+import com.isuara.app.service.SpeechRouter
 import com.isuara.app.service.Translation
 import com.isuara.app.service.TranslationStage
+import com.isuara.app.service.CandidateView
+import com.isuara.app.service.DebateProgress
 import com.isuara.app.service.Translator
-import com.isuara.app.service.TtsService
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
@@ -56,7 +65,8 @@ val googleSansFlex = FontFamily(Font(R.font.google_sans_flex))
 fun CameraScreen(
     signPredictor: SignPredictor,
     translator: Translator?,
-    ttsService: TtsService,
+    speech: SpeechRouter,
+    emotionTracker: EmotionTracker? = null,
     initialLanguage: Language = Language.MALAY,
     onLanguageChange: (Language) -> Unit = {}
 ) {
@@ -67,14 +77,23 @@ fun CameraScreen(
     val predictionState by signPredictor.state.collectAsState()
     // Vague pipeline progress: shows the multi-agent work is real without
     // putting candidate sentences or judge reasoning on screen.
+    val debate by (translator?.progress?.collectAsState()
+        ?: remember { mutableStateOf(DebateProgress()) })
     val translationStage by (translator?.stage?.collectAsState()
         ?: remember { mutableStateOf(TranslationStage.IDLE) })
+    // Live expression, for the chip only. The reading that actually steers a
+    // translation is taken once per sentence via readSentenceEmotion().
+    val liveEmotion by (emotionTracker?.state?.collectAsState()
+        ?: remember { mutableStateOf<EmotionReading?>(null) })
 
     var showLandmarks by remember { mutableStateOf(false) }
     var translation by remember { mutableStateOf<Translation?>(null) }
     var language by remember { mutableStateOf(initialLanguage) }
     var languageMenuOpen by remember { mutableStateOf(false) }
     var isTranslating by remember { mutableStateOf(false) }
+    // Held so the replay button re-speaks with the emotion the sentence was
+    // translated under; the window itself is consumed at translation time.
+    var spokenEmotion by remember { mutableStateOf<EmotionReading?>(null) }
     var fpsCounter by remember { mutableIntStateOf(0) }
     var displayFps by remember { mutableIntStateOf(0) }
     var lastFpsTime by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -93,33 +112,40 @@ fun CameraScreen(
             !isTranslating &&
             !predictionState.isWaitingForNewSentence) {
 
-            kotlinx.coroutines.delay(2000)
+            kotlinx.coroutines.delay(3000)
 
             val words = signPredictor.getSentenceWords()
-            if (words.isNotEmpty()) {
+            if (words.isNotEmpty() && !predictionState.isWaitingForNewSentence && !isTranslating) {
                 isTranslating = true
                 translation = null
+
+                // Read once and reuse: readSentenceEmotion() consumes the
+                // window, so calling it again below would return nothing.
+                val sentenceEmotion = emotionTracker?.readSentenceEmotion()
+                spokenEmotion = sentenceEmotion
 
                 try {
                     val rawSentence = words.joinToString(" ")
                     // No translator configured falls back to the raw Malay
                     // glosses. A real failure throws into the catch below.
-                    val result = translator?.translate(words)
+                    val result = translator?.translate(words, sentenceEmotion)
                         ?: Translation.ofRawGlosses(rawSentence)
                     translation = result
 
-                    // Speak only the selected language; TtsService falls back to
+                    // Speak only the selected language; the router falls back to
                     // the Malay rendering if that voice is not installed.
                     val spoken = result.forLanguage(language)
                     if (spoken.isNotEmpty()) {
-                        ttsService.speak(spoken, language, result.ms)
+                        speech.speak(spoken, language, result.ms, sentenceEmotion)
                     }
                 } catch (e: Exception) {
                     // If the translator throws (e.g., no internet), fall back to
                     // the raw glosses, which are Malay — so speak them as Malay.
+                    // The emotion still applies: how it is said does not depend
+                    // on the translator having succeeded.
                     val rawSentence = words.joinToString(" ")
                     translation = Translation.ofRawGlosses(rawSentence)
-                    ttsService.speak(rawSentence, Language.MALAY)
+                    speech.speak(rawSentence, Language.MALAY, rawSentence, sentenceEmotion)
                     Log.e(TAG, "Auto-translate error, falling back to raw text", e)
                 } finally {
                     isTranslating = false
@@ -146,11 +172,11 @@ fun CameraScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        // 1. EXACT 4:3 CAMERA PREVIEW
+        // 1. RESPONSIVE CAMERA PREVIEW
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(3f / 4f)
+                .weight(1.1f)
                 .background(Color.DarkGray)
         ) {
             val previewView = remember {
@@ -287,7 +313,11 @@ fun CameraScreen(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    EmotionChip(liveEmotion)
                     IconButton(
                         onClick = { showLandmarks = !showLandmarks },
                         colors = IconButtonDefaults.iconButtonColors(containerColor = if (showLandmarks) Color(0xFF2196F3) else Color.Black.copy(alpha = 0.5f))
@@ -314,38 +344,37 @@ fun CameraScreen(
             )
         }
 
-        // 2. CENTERED UI PANEL
+        // 2. CENTERED RECOGNITION & TRANSLATION PANEL
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .padding(16.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(modifier = Modifier.height(60.dp), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.height(44.dp), contentAlignment = Alignment.Center) {
+                val isWordActive = predictionState.currentWord.isNotEmpty() && predictionState.currentWord != SignPredictor.IDLE
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = predictionState.currentWord.isNotEmpty(),
+                    visible = isWordActive,
                     enter = fadeIn(),
                     exit = fadeOut()
                 ) {
-                    val textColor by animateColorAsState(if (predictionState.isConfident) Color(0xFF4CAF50) else Color.White.copy(alpha = 0.7f), label = "color")
+                    val textColor by animateColorAsState(if (predictionState.isConfident) Color(0xFF4CAF50) else Color.White.copy(alpha = 0.85f), label = "color")
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = predictionState.currentWord.uppercase(),
                             fontFamily = googleSansFlex,
                             color = textColor,
-                            fontSize = 24.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 2.sp
                         )
-                        // Static lookup from label_map.json; null for Malay,
-                        // for the Idle sentinel, and for unmapped glosses.
                         signPredictor.glossIn(predictionState.currentWord, language)?.let { translated ->
                             Text(
                                 text = translated,
                                 fontFamily = googleSansFlex,
                                 color = textColor.copy(alpha = 0.65f),
-                                fontSize = 15.sp,
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
                                 letterSpacing = 1.sp
                             )
@@ -359,10 +388,10 @@ fun CameraScreen(
                 progress = { animatedConfidence },
                 modifier = Modifier.width(100.dp).height(2.dp).clip(RoundedCornerShape(1.dp)),
                 color = if (predictionState.isConfident) Color(0xFF4CAF50) else Color(0xFFFF9800),
-                trackColor = Color.DarkGray
+                trackColor = Color(0xFF21262D)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             val displaySentence = predictionState.sentence.joinToString(" ")
 
@@ -381,9 +410,9 @@ fun CameraScreen(
                     Text(
                         text = displaySentence.ifEmpty { "Waiting for signs..." },
                         fontFamily = googleSansFlex,
-                        color = if (displaySentence.isEmpty()) Color.White.copy(alpha = 0.3f) else Color.White,
+                        color = if (displaySentence.isEmpty()) Color.White.copy(alpha = 0.4f) else Color.White,
                         fontSize = 18.sp,
-                        lineHeight = 24.sp,
+                        lineHeight = 26.sp,
                         textAlign = TextAlign.Center
                     )
 
@@ -395,10 +424,11 @@ fun CameraScreen(
                         Text(
                             text = translatedGlosses,
                             fontFamily = googleSansFlex,
-                            color = Color.White.copy(alpha = 0.55f),
+                            color = Color.White.copy(alpha = 0.65f),
                             fontSize = 15.sp,
-                            lineHeight = 20.sp,
-                            textAlign = TextAlign.Center
+                            lineHeight = 22.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 4.dp)
                         )
                     }
 
@@ -408,19 +438,36 @@ fun CameraScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             HorizontalDivider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 8.dp))
-                            if (isTranslating) {
+                            val hasDebate = debate.candidates.isNotEmpty()
+
+                            // Reset on each new run so the review dropdown does
+                            // not open pre-expanded from the previous sentence.
+                            var reasoningOpen by remember { mutableStateOf(false) }
+                            LaunchedEffect(isTranslating) {
+                                if (isTranslating) reasoningOpen = false
+                            }
+
+                            // Before the agents are seeded, and for a
+                            // single-model translator that has no debate.
+                            if (isTranslating && !hasDebate) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(color = Color(0xFF2196F3), modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    CircularProgressIndicator(
+                                        color = ACCENT,
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                    )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
                                         text = translationStage.label
                                             .ifEmpty { "Refining grammar..." },
                                         fontFamily = googleSansFlex,
-                                        color = Color(0xFF2196F3),
-                                        fontSize = 14.sp
+                                        color = ACCENT,
+                                        fontSize = 14.sp,
                                     )
                                 }
-                            } else {
+                            }
+
+                            if (!isTranslating) {
                                 translation?.let { t ->
                                     Text(
                                         text = t.ms,
@@ -428,44 +475,85 @@ fun CameraScreen(
                                         color = Color(0xFF64B5F6),
                                         fontSize = 18.sp,
                                         fontWeight = FontWeight.Medium,
+                                        lineHeight = 26.sp,
                                         textAlign = TextAlign.Center
                                     )
                                     if (language.isSecondary) {
                                         Text(
                                             text = t.forLanguage(language),
                                             fontFamily = googleSansFlex,
-                                            color = Color(0xFF64B5F6).copy(alpha = 0.7f),
+                                            color = Color(0xFF64B5F6).copy(alpha = 0.75f),
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Normal,
+                                            lineHeight = 22.sp,
                                             textAlign = TextAlign.Center,
                                             modifier = Modifier.padding(top = 4.dp)
                                         )
                                     }
                                 }
+
+                                // The reasoning is secondary once the answer is
+                                // in: one collapsed row below the sentence, so
+                                // the finished state reads as a translation
+                                // rather than a debate log.
+                                if (hasDebate) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .clickable { reasoningOpen = !reasoningOpen }
+                                            .padding(top = 8.dp, bottom = 2.dp),
+                                    ) {
+                                        Text(
+                                            text = if (reasoningOpen) "▾" else "▸",
+                                            color = Color.White.copy(alpha = 0.55f),
+                                            fontSize = 11.sp,
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = if (reasoningOpen) {
+                                                "Hide reasoning"
+                                            } else {
+                                                "Show reasoning"
+                                            },
+                                            fontFamily = googleSansFlex,
+                                            color = Color.White.copy(alpha = 0.55f),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                    }
+                                }
+                            }
+
+                            // One call site for both phases: live during the run,
+                            // and behind the dropdown afterwards. Rendering it
+                            // from two places would give Compose two call sites
+                            // and reset the per-step expand state between them.
+                            if (hasDebate && (isTranslating || reasoningOpen)) {
+                                DebatePanel(debate, translationStage)
                             }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            val uniformButtonHeight = 56.dp
+            val uniformButtonHeight = 52.dp
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Compact chip rather than a wide spinner: this row already
-                // carries three controls at 56.dp on a phone.
+                // Compact chip for language selection
                 Box {
                     FilledIconButton(
                         onClick = { languageMenuOpen = true },
                         modifier = Modifier.size(uniformButtonHeight),
                         colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = Color.White.copy(alpha = 0.1f)
-                        )
+                            containerColor = Color.White.copy(alpha = 0.12f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
                             text = language.shortLabel,
@@ -504,10 +592,12 @@ fun CameraScreen(
                         signPredictor.resetAll()
                         translation = null
                         isTranslating = false
-                        ttsService.stop()
+                        spokenEmotion = null
+                        speech.stop()
                     },
                     modifier = Modifier.size(uniformButtonHeight),
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White.copy(alpha = 0.1f))
+                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White.copy(alpha = 0.12f)),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color.White)
                 }
@@ -518,19 +608,22 @@ fun CameraScreen(
                         if (words.isNotEmpty() && !isTranslating) {
                             isTranslating = true
                             translation = null
+                            val sentenceEmotion = emotionTracker?.readSentenceEmotion()
+                            spokenEmotion = sentenceEmotion
                             scope.launch {
                                 try {
                                     val rawSentence = words.joinToString(" ")
-                                    // No translator falls back to raw glosses;
-                                    // real failures throw into the catch below.
-                                    translation = translator?.translate(words)
+                                    translation = translator?.translate(words, sentenceEmotion)
                                         ?: Translation.ofRawGlosses(rawSentence)
                                 } catch (e: Exception) {
-                                    // Fallback on crash (e.g., no internet connection)
                                     translation = Translation.ofRawGlosses(words.joinToString(" "))
                                     Log.e(TAG, "Manual translate error", e)
                                 } finally {
                                     isTranslating = false
+                                    // The manual path needs the same reset as
+                                    // the automatic one: glosses that survive a
+                                    // translation re-trigger it on the next idle.
+                                    signPredictor.prepareForNewSentence()
                                 }
                             }
                         }
@@ -539,30 +632,268 @@ fun CameraScreen(
                         .weight(1f)
                         .height(uniformButtonHeight),
                     enabled = predictionState.sentence.isNotEmpty() && !isTranslating,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2196F3),
+                        disabledContainerColor = Color(0xFF1E2630),
+                        disabledContentColor = Color(0xFF8B949E)
+                    ),
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text("Translate", fontFamily = googleSansFlex, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("Translate", fontFamily = googleSansFlex, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
 
                 FloatingActionButton(
                     onClick = {
                         val current = translation
                         if (current != null) {
-                            ttsService.speak(current.forLanguage(language), language, current.ms)
+                            speech.speak(
+                                current.forLanguage(language), language, current.ms, spokenEmotion,
+                            )
                         } else {
-                            // Untranslated glosses are Malay, so speak them as Malay.
                             val raw = predictionState.sentence.joinToString(" ")
-                            if (raw.isNotEmpty()) ttsService.speak(raw, Language.MALAY)
+                            if (raw.isNotEmpty()) {
+                                speech.speak(raw, Language.MALAY, raw, spokenEmotion)
+                            }
                         }
                     },
                     modifier = Modifier.size(uniformButtonHeight),
                     containerColor = Color(0xFF4CAF50),
                     contentColor = Color.White,
+                    shape = RoundedCornerShape(16.dp),
                     elevation = FloatingActionButtonDefaults.elevation(0.dp)
                 ) {
                     Icon(Icons.Default.PlayArrow, contentDescription = "Speak")
                 }
             }
         }
+    }
+}
+
+private val ACCENT = Color(0xFF2196F3)
+private val WINNER = Color(0xFF4CAF50)
+private val MUTED = Color.White.copy(alpha = 0.4f)
+
+/** Which step of the debate is currently open. Only ever one at a time. */
+private enum class DebateStep { MODEL_REASONING, JUDGING, NONE }
+
+/**
+ * The debate as two steps that take turns: the models answer, then the judge
+ * decides. Whichever step is live is expanded; the other is a one-line header.
+ *
+ * Which step is open is *derived* from [DebateProgress] rather than tracked
+ * separately, so the accordion cannot drift out of sync with the pipeline. A
+ * manual override sits on top for taps and is cleared whenever the pipeline
+ * moves on, otherwise reopening a step during one translation would leave the
+ * accordion stuck for the next.
+ */
+@Composable
+private fun DebatePanel(debate: DebateProgress, stage: TranslationStage) {
+    val auto = when {
+        !debate.isActive -> DebateStep.NONE
+        !debate.allResolved -> DebateStep.MODEL_REASONING
+        debate.verdict == null -> DebateStep.JUDGING
+        else -> DebateStep.NONE
+    }
+
+    var override by remember { mutableStateOf<DebateStep?>(null) }
+    // Clearing on every change of `auto` is what keeps a tap from outliving the
+    // step it was made in.
+    LaunchedEffect(auto) { override = null }
+    val open = override ?: auto
+
+    val answered = debate.candidates.count { it.sentence != null }
+    val winner = debate.verdict?.let { debate.candidates.getOrNull(it.choice) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 220.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        DebateStepRow(
+            index = 1,
+            title = "Model Reasoning",
+            expanded = open == DebateStep.MODEL_REASONING,
+            active = auto == DebateStep.MODEL_REASONING,
+            summary = when {
+                debate.candidates.isEmpty() -> ""
+                answered == debate.candidates.size -> "${debate.candidates.size} models"
+                else -> "$answered of ${debate.candidates.size}"
+            },
+            onToggle = {
+                override = if (open == DebateStep.MODEL_REASONING) {
+                    DebateStep.NONE
+                } else {
+                    DebateStep.MODEL_REASONING
+                }
+            },
+        ) {
+            debate.candidates.forEachIndexed { index, candidate ->
+                ModelRow(candidate, isWinner = debate.verdict?.choice == index)
+            }
+        }
+
+        DebateStepRow(
+            index = 2,
+            title = "Judging",
+            expanded = open == DebateStep.JUDGING,
+            active = auto == DebateStep.JUDGING,
+            summary = winner?.shortName.orEmpty(),
+            onToggle = {
+                override = if (open == DebateStep.JUDGING) DebateStep.NONE else DebateStep.JUDGING
+            },
+        ) {
+            if (debate.verdict == null) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 20.dp),
+                ) {
+                    CircularProgressIndicator(
+                        color = ACCENT,
+                        modifier = Modifier.size(12.dp),
+                        strokeWidth = 2.dp,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stage.label.ifEmpty { "Weighing interpretations…" },
+                        fontFamily = googleSansFlex,
+                        color = ACCENT,
+                        fontSize = 12.sp,
+                    )
+                }
+            } else {
+                Column(modifier = Modifier.padding(start = 20.dp)) {
+                    Text(
+                        text = "★ ${winner?.shortName.orEmpty()}",
+                        fontFamily = googleSansFlex,
+                        color = WINNER,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    winner?.sentence?.let {
+                        Text(
+                            text = it,
+                            fontFamily = googleSansFlex,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 14.sp,
+                            lineHeight = 19.sp,
+                            modifier = Modifier.padding(top = 1.dp),
+                        )
+                    }
+                    debate.verdict?.reason?.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            text = it,
+                            fontFamily = googleSansFlex,
+                            color = Color(0xFFFFB74D).copy(alpha = 0.85f),
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** One numbered step: a tappable header, and a body shown only when expanded. */
+@Composable
+private fun DebateStepRow(
+    index: Int,
+    title: String,
+    expanded: Boolean,
+    active: Boolean,
+    summary: String,
+    onToggle: () -> Unit,
+    body: @Composable () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(vertical = 4.dp),
+        ) {
+            Text(
+                text = if (expanded) "▾" else "▸",
+                color = if (active) ACCENT else MUTED,
+                fontSize = 11.sp,
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "$index. $title",
+                fontFamily = googleSansFlex,
+                color = if (active) ACCENT else Color.White.copy(alpha = 0.6f),
+                fontSize = 12.sp,
+                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+            )
+            if (!expanded && summary.isNotBlank()) {
+                Spacer(modifier = Modifier.weight(1f))
+                Text(
+                    text = summary,
+                    fontFamily = googleSansFlex,
+                    color = MUTED,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(modifier = Modifier.padding(bottom = 4.dp)) { body() }
+        }
+    }
+}
+
+/** One model's row: pending, answered, or failed. */
+@Composable
+private fun ModelRow(candidate: CandidateView, isWinner: Boolean) {
+    Column(modifier = Modifier.padding(bottom = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (candidate.isPending) {
+                CircularProgressIndicator(
+                    color = ACCENT,
+                    modifier = Modifier.size(12.dp),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text(
+                    text = if (candidate.failed) "×" else if (isWinner) "★" else "•",
+                    color = when {
+                        candidate.failed -> MUTED
+                        isWinner -> WINNER
+                        else -> ACCENT
+                    },
+                    fontSize = 13.sp,
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = candidate.shortName,
+                fontFamily = googleSansFlex,
+                color = if (isWinner) WINNER else Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Medium,
+            )
+        }
+        Text(
+            text = when {
+                candidate.failed -> "no answer"
+                candidate.sentence == null -> "thinking…"
+                else -> candidate.sentence
+            },
+            fontFamily = googleSansFlex,
+            color = if (candidate.sentence == null || candidate.failed) {
+                MUTED
+            } else {
+                Color.White.copy(alpha = 0.9f)
+            },
+            fontSize = 14.sp,
+            lineHeight = 19.sp,
+            modifier = Modifier.padding(start = 20.dp, top = 1.dp),
+        )
     }
 }

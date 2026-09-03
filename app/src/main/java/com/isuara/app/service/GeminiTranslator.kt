@@ -5,6 +5,7 @@ import com.google.genai.Client
 import com.google.genai.types.Content
 import com.google.genai.types.GenerateContentConfig
 import com.google.genai.types.Part
+import com.isuara.app.emotion.EmotionReading
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,9 +54,15 @@ class GeminiTranslator(
     private val _stage = MutableStateFlow(TranslationStage.IDLE)
     override val stage: StateFlow<TranslationStage> = _stage.asStateFlow()
 
-    private val systemPrompt: String = TranslationPrompts.withPersona(persona)
+    private val _progress = MutableStateFlow(DebateProgress())
+    override val progress: StateFlow<DebateProgress> = _progress.asStateFlow()
 
-    override suspend fun translate(words: List<String>): Translation = withContext(Dispatchers.IO) {
+    private val systemPrompt: String = TranslationPrompts.SYSTEM
+
+    override suspend fun translate(
+        words: List<String>,
+        emotion: EmotionReading?,
+    ): Translation = withContext(Dispatchers.IO) {
         require(words.isNotEmpty()) { "no glosses to translate" }
 
         // One retry: a model that rambles once usually complies on a re-ask, and
@@ -69,7 +76,10 @@ class GeminiTranslator(
             repeat(2) { attempt ->
                 try {
                     val raw = complete(
-                        systemPrompt, TranslationPrompts.userTurn(words), clientProvider(), modelId
+                        systemPrompt,
+                        TranslationPrompts.userTurn(words, emotion),
+                        clientProvider(),
+                        modelId,
                     )
                     val translation = TranslationParsing.extractTranslation(raw)
                     Log.i(TAG, "key[$keySlot] $modelId $words -> ${translation.ms}")

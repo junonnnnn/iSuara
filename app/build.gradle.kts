@@ -40,6 +40,17 @@ android {
         buildConfigField("String", "GEMINI_API_KEY_2", "\"$geminiKey2\"")
         buildConfigField("String", "GEMINI_API_KEY_3", "\"$geminiKey3\"")
 
+        // Gemini keys for expressive TTS, comma-joined. Several are supported
+        // because the TTS endpoint rate-limits hard on this tier — measured 429s
+        // on 3 of 5 consecutive calls — and rotating keys is what keeps a live
+        // demo speaking. Numbered keys are optional; the unsuffixed one is not.
+        val geminiKeys = listOfNotNull(
+            localProperties.getProperty("GEMINI_API_KEY"),
+            localProperties.getProperty("GEMINI_API_KEY_2"),
+            localProperties.getProperty("GEMINI_API_KEY_3"),
+        ).filter { it.isNotBlank() }
+        buildConfigField("String", "GEMINI_API_KEYS", "\"${geminiKeys.joinToString(",")}\"")
+
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
         }
@@ -72,9 +83,9 @@ android {
         buildConfig = true
     }
 
-    // Don't compress TFLite models or MediaPipe task bundles
+    // Don't compress TFLite models, MediaPipe task bundles or the ONNX model
     androidResources {
-        noCompress += listOf("tflite", "task")
+        noCompress += listOf("tflite", "task", "onnx")
     }
 
     // google-genai is a server-side SDK: several of its jars ship the same
@@ -135,6 +146,12 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite-gpu:2.16.1")
     implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.16.1")
     implementation("org.tensorflow:tensorflow-lite-gpu-api:2.16.1")
+
+    // ONNX Runtime — facial expression recognition (EmotiEffLib EfficientNet-B0).
+    // A second inference runtime beside TFLite is deliberate: EmotiEffLib ships
+    // ONNX weights, and converting them would add a fragile offline step whose
+    // numerical drift we would have to police ourselves.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
 
     // GonkaRouter — reached with the Anthropic SDK (GonkaRouter speaks the
     // Messages API); base URL is overridden in service/GonkaClient.kt

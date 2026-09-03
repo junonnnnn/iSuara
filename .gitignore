@@ -28,3 +28,15 @@ local.properties
 # Exclude keystore files
 *.jks
 *.keystore
+
+# Kotlin / IDE caches
+.kotlin/
+
+# Test screen captures & artifacts
+*.png
+!avatar.png
+*.tmp
+
+# Temporary notes & changelogs
+Changes_*.md
+

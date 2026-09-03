@@ -1,6 +1,7 @@
 package com.isuara.app.service
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -68,6 +69,47 @@ class TranslationParsingTest {
         assertTrue(t.en.contains(","))
     }
 
+    /**
+     * The naive "first { to last }" span broke here: a brace inside the
+     * reasoning swallowed the whole thing. MiniMax leaks reasoning on every
+     * run, so this is the case that keeps it in the debate.
+     */
+    @Test
+    fun `ignores reasoning that itself contains braces`() {
+        val t = TranslationParsing.extractTranslation(
+            """
+            <think>
+            The prompt asks for {"ms": ..., "en": ...} so I must emit an object
+            with exactly those keys. Let me restate the shape {like this} first.
+            </think>
+            {"ms": "Saya lapar.", "en": "I am hungry.", "zh": "我饿了。", "ta": "எனக்கு பசிக்கிறது."}
+            """.trimIndent()
+        )
+        assertEquals("Saya lapar.", t.ms)
+    }
+
+    @Test
+    fun `keeps braces that appear inside a string value`() {
+        val t = TranslationParsing.extractTranslation(
+            """{"ms": "Kurungan { dan } dalam ayat.", "en": "Braces { and } in a sentence.", "zh": "句子里的 { 和 }。", "ta": "வாக்கியத்தில் { மற்றும் }."}"""
+        )
+        assertEquals("Kurungan { dan } dalam ayat.", t.ms)
+        assertTrue(t.en.contains("{"))
+    }
+
+    /** A model that echoes the prompt's example must not have it picked. */
+    @Test
+    fun `takes the last object when several are present`() {
+        val t = TranslationParsing.extractTranslation(
+            """
+            Example was {"ms": "Contoh.", "en": "Example.", "zh": "例子。", "ta": "எடுத்துக்காட்டு."}
+            My answer:
+            {"ms": "Saya faham.", "en": "I understand.", "zh": "我明白。", "ta": "எனக்கு புரிகிறது."}
+            """.trimIndent()
+        )
+        assertEquals("Saya faham.", t.ms)
+    }
+
     @Test
     fun `rejects a missing language`() {
         assertThrows(IllegalArgumentException::class.java) {
@@ -112,5 +154,52 @@ class TranslationParsingTest {
         assertEquals("E", t.forLanguage(Language.ENGLISH))
         assertEquals("Z", t.forLanguage(Language.MANDARIN))
         assertEquals("T", t.forLanguage(Language.TAMIL))
+    }
+
+    // ---- emotion enrichment -------------------------------------------------
+
+    @Test
+    fun `reads the emotion and style fields when present`() {
+        val t = TranslationParsing.extractTranslation(
+            """{"ms": "Tolong! Cepat!", "en": "Help! Quick!", "zh": "\u6551\u547d!", "ta": "\u0b89\u0ba4\u0bb5\u0bbf!",
+                "emotion": "fear", "style": "Say this urgently and fearfully."}"""
+        )
+        assertEquals("fear", t.emotion)
+        assertEquals("Say this urgently and fearfully.", t.style)
+    }
+
+    /**
+     * The enrichment must never be load-bearing. A model that ignores the new
+     * instruction still produced a perfectly good translation, and failing the
+     * whole request would drop that model out of the debate for a cosmetic
+     * shortfall.
+     */
+    @Test
+    fun `a reply without emotion or style still parses`() {
+        val t = TranslationParsing.extractTranslation(
+            """{"ms": "Saya lapar.", "en": "I am hungry.", "zh": "\u6211\u997f\u4e86\u3002", "ta": "\u0baa\u0b9a\u0bbf."}"""
+        )
+        assertEquals("Saya lapar.", t.ms)
+        assertNull(t.emotion)
+        assertNull(t.style)
+    }
+
+    /** Blank is absence, not an empty directive to hand to the voice engine. */
+    @Test
+    fun `blank emotion and style are normalised to null`() {
+        val t = TranslationParsing.extractTranslation(
+            """{"ms": "A", "en": "B", "zh": "C", "ta": "D", "emotion": "  ", "style": ""}"""
+        )
+        assertNull(t.emotion)
+        assertNull(t.style)
+    }
+
+    @Test
+    fun `missing a language still fails even when emotion is present`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            TranslationParsing.extractTranslation(
+                """{"ms": "A", "en": "B", "zh": "C", "emotion": "anger", "style": "Angrily."}"""
+            )
+        }
     }
 }
