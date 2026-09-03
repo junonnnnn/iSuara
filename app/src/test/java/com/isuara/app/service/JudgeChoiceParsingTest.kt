@@ -60,8 +60,8 @@ class JudgeChoiceParsingTest {
 
     @Test
     fun `accepts the first and last valid index`() {
-        assertEquals(0, TranslationParsing.extractChoice("""{"choice": 0, "reason": "x"}""", 3).first)
-        assertEquals(2, TranslationParsing.extractChoice("""{"choice": 2, "reason": "x"}""", 3).first)
+        assertEquals(0, TranslationParsing.extractChoice("""{"choice": 0, "reason": "x"}""", 3).choice)
+        assertEquals(2, TranslationParsing.extractChoice("""{"choice": 2, "reason": "x"}""", 3).choice)
     }
 
     @Test

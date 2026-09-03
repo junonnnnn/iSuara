@@ -103,13 +103,14 @@ object TranslationParsing {
      * @throws IllegalArgumentException if no object is present, the choice is
      *   missing or not an integer, or the index is out of range.
      */
-    fun extractChoice(raw: String, candidateCount: Int): Pair<Int, String> {
+    fun extractChoice(raw: String, candidateCount: Int): JudgeVerdict {
         val obj = parse(raw, "judge reply")
         require(obj.has("choice")) { "judge reply has no choice: ${raw.take(200)}" }
         val choice = obj.optInt("choice", -1)
         require(choice in 0 until candidateCount) {
             "judge chose $choice, outside 0..${candidateCount - 1}"
         }
-        return choice to obj.optString("reason").trim()
+
+        return JudgeVerdict(choice = choice, reason = obj.optString("reason").trim())
     }
 }

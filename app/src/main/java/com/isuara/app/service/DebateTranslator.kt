@@ -36,6 +36,8 @@ import kotlinx.coroutines.withContext
 class DebateTranslator(
     private val agents: List<Translator>,
     private val judgeCall: suspend (system: String, user: String) -> String,
+    /** Display names, parallel to [agents]. Shown while each is still pending. */
+    private val agentLabels: List<String> = agents.indices.map { "agent $it" },
 ) : Translator {
 
     companion object {
@@ -45,13 +47,30 @@ class DebateTranslator(
         private const val STAGE_HOLD_MS = 400L
     }
 
+    private val _progress = MutableStateFlow(DebateProgress())
+    override val progress: StateFlow<DebateProgress> = _progress.asStateFlow()
+
     private val _stage = MutableStateFlow(TranslationStage.IDLE)
     override val stage: StateFlow<TranslationStage> = _stage.asStateFlow()
 
+    private fun setStage(next: TranslationStage) {
+        _stage.value = next
+        _progress.value = _progress.value.copy(stage = next)
+    }
+
     /** Presentation only — must never delay the returned translation. */
     private suspend fun hold(next: TranslationStage) {
-        _stage.value = next
+        setStage(next)
         delay(STAGE_HOLD_MS)
+    }
+
+    /** Publishes one agent's outcome the moment it lands. */
+    private fun publish(index: Int, sentence: String?, failed: Boolean) {
+        _progress.value = _progress.value.copy(
+            candidates = _progress.value.candidates.mapIndexed { i, c ->
+                if (i == index) c.copy(sentence = sentence, failed = failed) else c
+            }
+        )
     }
 
     override suspend fun translate(
@@ -61,17 +80,32 @@ class DebateTranslator(
         require(words.isNotEmpty()) { "no glosses to translate" }
 
         try {
+            // Seed every slot as pending up front so the UI can show all three
+            // models immediately, then fill each in as its model answers.
+            _progress.value = DebateProgress(
+                stage = TranslationStage.CONSULTING,
+                candidates = agentLabels.map { CandidateView(model = it) },
+            )
             _stage.value = TranslationStage.CONSULTING
 
-            val candidates = coroutineScope {
-                agents.map { agent ->
-                    async { runCatching { agent.translate(words, emotion) }.getOrNull() }
+            // Each agent publishes on completion rather than the whole set
+            // waiting on the slowest — the measured spread across the three
+            // models was ~9s to ~126s, so batching means minutes of dead air.
+            val results = coroutineScope {
+                agents.mapIndexed { i, agent ->
+                    async {
+                        val result = runCatching { agent.translate(words, emotion) }.getOrNull()
+                        publish(i, result?.ms, failed = result == null)
+                        Log.i(TAG, "candidate[$i] ${agentLabels.getOrNull(i)}: " +
+                            (result?.ms ?: "FAILED"))
+                        result
+                    }
                 }.awaitAll()
-            }.filterNotNull()
-
-            candidates.forEachIndexed { i, c ->
-                Log.i(TAG, "candidate[$i] ${GonkaTranslator.AGENT_MODELS.getOrNull(i)}: ${c.ms}")
             }
+            val candidates = results.filterNotNull()
+            // Maps a surviving candidate's index back to its agent slot, so the
+            // judge's choice reaches the row that actually produced the winner.
+            val slotOf = results.indices.filter { results[it] != null }
 
             when (candidates.size) {
                 0 -> throw IllegalStateException("all ${agents.size} interpreters failed")
@@ -87,14 +121,26 @@ class DebateTranslator(
 
             // A failed judge must not discard candidates we already hold; an
             // arbitrary but valid answer beats falling back to raw glosses.
-            val chosen = runCatching { judge(words, candidates, emotion) }
+            val verdict = runCatching { judge(words, candidates, emotion) }
                 .onFailure { Log.w(TAG, "judge failed, using first candidate: ${it.message}") }
-                .getOrDefault(0)
+                .getOrNull()
+
+            // Re-index onto agent slots before publishing: the judge numbers
+            // the candidates it was given, so with a failed agent its choice
+            // refers to a different row than the one that produced the winner.
+            if (verdict != null) {
+                _progress.value = _progress.value.copy(
+                    verdict = verdict.copy(
+                        choice = slotOf.getOrElse(verdict.choice) { verdict.choice },
+                    )
+                )
+            }
 
             hold(TranslationStage.DECIDING)
-            return candidates[chosen]
+            return candidates[verdict?.choice ?: 0]
         } finally {
             _stage.value = TranslationStage.IDLE
+            _progress.value = _progress.value.copy(stage = TranslationStage.IDLE)
         }
     }
 
@@ -109,15 +155,16 @@ class DebateTranslator(
         words: List<String>,
         candidates: List<Translation>,
         emotion: EmotionReading?,
-    ): Int =
+    ): JudgeVerdict =
         withContext(Dispatchers.IO) {
             val raw = judgeCall(
                 TranslationPrompts.JUDGE,
                 TranslationPrompts.judgeTurn(words, candidates, emotion),
             )
-            val (choice, reason) = TranslationParsing.extractChoice(raw, candidates.size)
-            Log.i(TAG, "judge chose [$choice] \"${candidates[choice].ms}\" — $reason")
-            choice
+            val verdict = TranslationParsing.extractChoice(raw, candidates.size)
+            Log.i(TAG, "judge chose [${verdict.choice}] " +
+                "'${candidates[verdict.choice].ms}' — ${verdict.reason}")
+            verdict
         }
 }
 
@@ -137,4 +184,5 @@ fun gonkaDebate() = DebateTranslator(
     judgeCall = { system, user ->
         gonkaComplete(GonkaTranslator.JUDGE_MODEL, system, user)
     },
+    agentLabels = GonkaTranslator.AGENT_MODELS,
 )
