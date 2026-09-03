@@ -10,6 +10,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 
 /**
@@ -66,11 +67,13 @@ class DebateTranslator(
 
     /** Publishes one agent's outcome the moment it lands. */
     private fun publish(index: Int, sentence: String?, failed: Boolean) {
-        _progress.value = _progress.value.copy(
-            candidates = _progress.value.candidates.mapIndexed { i, c ->
-                if (i == index) c.copy(sentence = sentence, failed = failed) else c
-            }
-        )
+        _progress.update { current ->
+            current.copy(
+                candidates = current.candidates.mapIndexed { i, c ->
+                    if (i == index) c.copy(sentence = sentence, failed = failed) else c
+                }
+            )
+        }
     }
 
     override suspend fun translate(
