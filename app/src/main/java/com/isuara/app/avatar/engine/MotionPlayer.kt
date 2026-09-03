@@ -16,7 +16,7 @@ class MotionPlayer {
     var playbackSpeed: Float = 1.0f
     var currentTimeSec: Float = 0.0f
         private set
-    var isLooping: Boolean = true
+    var isLooping: Boolean = false
 
     private var currentPoseState: AvatarPoseState = AvatarPoseState()
 

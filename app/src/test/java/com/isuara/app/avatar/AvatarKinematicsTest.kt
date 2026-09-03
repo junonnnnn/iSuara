@@ -142,4 +142,36 @@ class AvatarKinematicsTest {
         assertNotNull(midPose.leftHandPoints)
         assertEquals(21, midPose.leftHandPoints!!.size)
     }
+
+    @Test
+    fun testMotionPlayerPlaysOnceWithoutLooping() {
+        val f0 = BimFrame(0, 0.0f, PoseJoints(nose = Vec3(0f, 1.5f, 0f)))
+        val f1 = BimFrame(1, 0.5f, PoseJoints(nose = Vec3(1f, 1.5f, 0f)))
+
+        val motion = BimMotion(
+            word = "Once Test",
+            fps = 50f,
+            numFrames = 2,
+            duration = 0.5f,
+            frames = listOf(f0, f1)
+        )
+
+        val player = MotionPlayer()
+        player.setMotion(motion, autoPlay = true)
+
+        // isLooping must be false by default
+        org.junit.Assert.assertFalse("Looping must default to false", player.isLooping)
+        assertTrue(player.isPlaying)
+
+        // Advance 0.2s -> still playing
+        player.advanceTime(0.2f)
+        assertTrue(player.isPlaying)
+        assertEquals(0.2f, player.currentTimeSec, 0.001f)
+
+        // Advance past duration (0.4s more -> total 0.6s >= 0.5s)
+        player.advanceTime(0.4f)
+        org.junit.Assert.assertFalse("Player must stop playing after completion", player.isPlaying)
+        assertEquals("Current time must clamp at duration", 0.5f, player.currentTimeSec, 0.001f)
+    }
 }
+
