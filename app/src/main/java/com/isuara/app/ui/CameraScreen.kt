@@ -620,6 +620,10 @@ fun CameraScreen(
                                     Log.e(TAG, "Manual translate error", e)
                                 } finally {
                                     isTranslating = false
+                                    // The manual path needs the same reset as
+                                    // the automatic one: glosses that survive a
+                                    // translation re-trigger it on the next idle.
+                                    signPredictor.prepareForNewSentence()
                                 }
                             }
                         }
