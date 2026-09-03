@@ -230,23 +230,15 @@ class SignPredictor(
     }
 
     /**
-     * Clears the gloss buffer once a translation has been produced.
+     * Prepares for the next sentence once a translation has been produced.
      *
-     * Clears immediately rather than waiting for the next sign. Glosses left on
-     * screen keep satisfying the auto-translate trigger — idle plus a non-empty
-     * sentence — so the same words get sent again the moment the signer pauses.
-     * The finished sentence and its reasoning stay; only the glosses go.
-     *
-     * [startNewSentenceNextWord] is still raised so the existing
-     * `isWaitingForNewSentence` guard on the trigger keeps holding until the
-     * signer actually starts a new phrase. The deferred clear in
-     * [updatePrediction] then finds the buffer already empty and is a no-op.
+     * Leaves existing glosses visible on screen until the signer starts making the
+     * next sign, while setting [startNewSentenceNextWord] and `isWaitingForNewSentence`
+     * to prevent idle from re-triggering translation on the same words.
      */
     fun prepareForNewSentence() {
-        sentenceWords.clear()
-        lastWord = ""
         startNewSentenceNextWord = true
-        _state.update { it.copy(sentence = emptyList(), isWaitingForNewSentence = true) }
+        _state.update { it.copy(isWaitingForNewSentence = true) }
     }
     fun close() {
         landmarkExtractor.close()

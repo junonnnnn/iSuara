@@ -112,10 +112,10 @@ fun CameraScreen(
             !isTranslating &&
             !predictionState.isWaitingForNewSentence) {
 
-            kotlinx.coroutines.delay(2000)
+            kotlinx.coroutines.delay(3000)
 
             val words = signPredictor.getSentenceWords()
-            if (words.isNotEmpty()) {
+            if (words.isNotEmpty() && !predictionState.isWaitingForNewSentence && !isTranslating) {
                 isTranslating = true
                 translation = null
 
