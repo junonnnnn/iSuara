@@ -64,6 +64,11 @@ class GonkaTranslator(
     private val _stage = MutableStateFlow(TranslationStage.IDLE)
     override val stage: StateFlow<TranslationStage> = _stage.asStateFlow()
 
+    // A single model is a one-candidate debate with no judge, so the UI can
+    // render it through the same path without special-casing.
+    private val _progress = MutableStateFlow(DebateProgress())
+    override val progress: StateFlow<DebateProgress> = _progress.asStateFlow()
+
     override suspend fun translate(
         words: List<String>,
         emotion: EmotionReading?,
