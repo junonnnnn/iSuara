@@ -1,0 +1,46 @@
+# Secrets. Broad on purpose: it must catch .env.local, .env.production and any
+# stray copy anywhere under web/, not just the one path we expect. The example
+# file is re-included below because it holds names only, never values.
+#
+# The frontend must NEVER hold an API key: Vite compiles anything prefixed with
+# VITE_ straight into the public browser bundle. Keys live in backend/.env only.
+.env
+.env.*
+!.env.example
+
+# Backend. The venv must be Python 3.9-3.12 (TF 2.19 supports no higher) —
+# see requirements.txt. Extra names are ignored too so a second environment
+# built for version testing never gets committed.
+backend/.venv/
+backend/.venv[0-9]*/
+backend/.venv-*/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/tools/tflite_tensors.txt
+backend/models/*.onnx
+
+# Model artifacts exported from the training notebook. Large, and not part of
+# the Android build — see web/README.md for where to get them.
+backend/models/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+# Vite's pre-bundled dependency cache — machine-local, regenerated on demand.
+frontend/.vite/
+
+# Everything scripts/copy-assets.mjs generates. These are copies of files that
+# already live in app/src/main/{assets,res} or in node_modules, so committing
+# them would duplicate ~17MB and let the copies drift from their sources. The
+# Pages workflow runs the script at build time.
+frontend/public/wasm/
+frontend/public/models/
+frontend/public/fonts/
+frontend/public/motions/
+frontend/src/assets/*.ttf
+
+# The Netlify CLI's local link state (the deployed site's id). Written into
+# web/frontend by `netlify deploy`; the CLI wants to add this to the root
+# .gitignore, which belongs to the Android project, so it lives here instead.
+.netlify
