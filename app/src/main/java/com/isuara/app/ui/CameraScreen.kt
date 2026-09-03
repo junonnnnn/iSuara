@@ -469,8 +469,12 @@ fun CameraScreen(
 
                             if (!isTranslating) {
                                 translation?.let { t ->
+                                    val emoji = spokenEmotion?.takeIf { it.confidence >= 0.35f }
+                                        ?.label?.emoji?.takeIf { it.isNotEmpty() }
+                                    val emojiSuffix = if (emoji != null) " $emoji" else ""
+
                                     Text(
-                                        text = t.ms,
+                                        text = "${t.ms}$emojiSuffix",
                                         fontFamily = googleSansFlex,
                                         color = Color(0xFF64B5F6),
                                         fontSize = 18.sp,
@@ -480,7 +484,7 @@ fun CameraScreen(
                                     )
                                     if (language.isSecondary) {
                                         Text(
-                                            text = t.forLanguage(language),
+                                            text = "${t.forLanguage(language)}$emojiSuffix",
                                             fontFamily = googleSansFlex,
                                             color = Color(0xFF64B5F6).copy(alpha = 0.75f),
                                             fontSize = 15.sp,
