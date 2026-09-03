@@ -36,7 +36,7 @@ class TouchOrbitController(
                     val dy = event.y - lastTouchY
 
                     azimuthDeg -= dx * 0.4f
-                    elevationDeg -= dy * 0.3f
+                    elevationDeg += dy * 0.3f
                     elevationDeg = elevationDeg.coerceIn(-60f, 60f)
 
                     lastTouchX = event.x
