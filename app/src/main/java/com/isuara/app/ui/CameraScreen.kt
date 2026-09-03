@@ -613,10 +613,18 @@ fun CameraScreen(
                             scope.launch {
                                 try {
                                     val rawSentence = words.joinToString(" ")
-                                    translation = translator?.translate(words, sentenceEmotion)
+                                    val result = translator?.translate(words, sentenceEmotion)
                                         ?: Translation.ofRawGlosses(rawSentence)
+                                    translation = result
+
+                                    val spoken = result.forLanguage(language)
+                                    if (spoken.isNotEmpty()) {
+                                        speech.speak(spoken, language, result.ms, sentenceEmotion)
+                                    }
                                 } catch (e: Exception) {
-                                    translation = Translation.ofRawGlosses(words.joinToString(" "))
+                                    val rawSentence = words.joinToString(" ")
+                                    translation = Translation.ofRawGlosses(rawSentence)
+                                    speech.speak(rawSentence, Language.MALAY, rawSentence, sentenceEmotion)
                                     Log.e(TAG, "Manual translate error", e)
                                 } finally {
                                     isTranslating = false
