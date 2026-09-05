@@ -32,6 +32,10 @@ import com.isuara.app.avatar.data.MotionRepository
 import com.isuara.app.avatar.engine.MotionPlayer
 import com.isuara.app.avatar.gl.AvatarGLSurfaceView
 import com.isuara.app.avatar.grammar.GonkaSignGrammarService
+import com.isuara.app.avatar.grammar.SignGrammarResult
+import com.isuara.app.avatar.grammar.GrammarCandidate
+import com.isuara.app.avatar.grammar.GrammarVerdict
+import androidx.compose.foundation.lazy.items
 import kotlinx.coroutines.launch
 
 @Composable
@@ -53,6 +57,8 @@ fun AvatarPlayerScreen(
     var reasoningTrace by remember { mutableStateOf<String?>(null) }
     var bimTokens by remember { mutableStateOf<List<String>>(emptyList()) }
     var activeModelLabel by remember { mutableStateOf<String?>(null) }
+    var grammarResult by remember { mutableStateOf<SignGrammarResult?>(null) }
+    var showReasoningPath by remember { mutableStateOf(false) }
 
     // Play helper with AI BIM grammar reasoning for sentences
     fun triggerPlay(query: String, startPlaying: Boolean = true) {
@@ -72,6 +78,7 @@ fun AvatarPlayerScreen(
             bimTokens = emptyList()
             reasoningTrace = null
             activeModelLabel = null
+            grammarResult = null
             val motion = repository.loadMotion(directMatch.key)
             if (motion != null) {
                 motionPlayer.isLooping = false
@@ -85,6 +92,7 @@ fun AvatarPlayerScreen(
             isReasoning = true
             try {
                 val result = grammarService.restructure(effectiveQuery)
+                grammarResult = result
                 reasoningTrace = result.reasoning
                 bimTokens = result.displayTokens
                 activeModelLabel = result.model
@@ -188,17 +196,35 @@ fun AvatarPlayerScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "BIM Sign Grammar Syntax",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF58A6FF)
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "BIM Final Sign Sequence",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF58A6FF)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color(0x2E3FB950), RoundedCornerShape(4.dp))
+                                        .border(1.dp, Color(0x663FB950), RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "FINAL SIGN",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF3FB950)
+                                    )
+                                }
+                            }
                             activeModelLabel?.let { model ->
                                 Text(
                                     text = model,
                                     fontSize = 10.sp,
-                                    color = Color(0xFF3FB950),
+                                    color = Color(0xFF8B949E),
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
@@ -234,14 +260,161 @@ fun AvatarPlayerScreen(
                             }
                         }
 
-                        reasoningTrace?.let { trace ->
+                        // Collapsible toggle for 3-model reasoning path
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showReasoningPath = !showReasoningPath }
+                                .background(Color(0x33161B22), RoundedCornerShape(6.dp))
+                                .border(1.dp, Color(0x3330363D), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 5.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Text(
-                                text = trace,
+                                text = if (showReasoningPath) "▴ Hide 3-Model Reasoning Path" else "▾ Show 3-Model Reasoning Path (3 Models)",
                                 fontSize = 11.sp,
-                                fontStyle = FontStyle.Italic,
-                                color = Color(0xFF8B949E),
-                                lineHeight = 14.sp
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF58A6FF)
                             )
+                            Text(
+                                text = "DeepSeek • MiniMax • Kimi",
+                                fontSize = 10.sp,
+                                color = Color(0xFF8B949E)
+                            )
+                        }
+
+                        // Collapsible 3-Model Reasoning details
+                        AnimatedVisibility(
+                            visible = showReasoningPath && grammarResult != null,
+                            enter = fadeIn(),
+                            exit = fadeOut()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                // 3 Candidate models
+                                grammarResult?.candidates?.forEach { cand ->
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                if (cand.isWinner) Color(0x143FB950) else Color(0xFF161B22),
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                if (cand.isWinner) Color(0x663FB950) else Color(0xFF30363D),
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .padding(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = cand.model,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFF0F6FC)
+                                                )
+                                                if (cand.isWinner) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .background(Color(0x2E3FB950), RoundedCornerShape(4.dp))
+                                                            .border(1.dp, Color(0x663FB950), RoundedCornerShape(4.dp))
+                                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "CONSENSUS PICK",
+                                                            fontSize = 8.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFF3FB950)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            cand.requestId?.let { reqId ->
+                                                Text(
+                                                    text = reqId,
+                                                    fontSize = 8.sp,
+                                                    color = Color(0xFF8B949E)
+                                                )
+                                            }
+                                        }
+
+                                        // Candidate tokens
+                                        LazyRow(
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            itemsIndexed(cand.displayTokens) { idx, t ->
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(Color(0xFF21262D), RoundedCornerShape(4.dp))
+                                                        .border(1.dp, Color(0x44388BFD), RoundedCornerShape(4.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = t,
+                                                        fontSize = 10.sp,
+                                                        color = Color(0xFFE6EDF3)
+                                                    )
+                                                }
+                                                if (idx < cand.displayTokens.size - 1) {
+                                                    Text(
+                                                        text = "→",
+                                                        fontSize = 10.sp,
+                                                        color = Color(0xFF8B949E)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Consensus Judge Verdict Box
+                                grammarResult?.verdict?.let { verdict ->
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color(0x1A238636), RoundedCornerShape(8.dp))
+                                            .border(1.dp, Color(0x663FB950), RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "⚖️ Consensus Pick: ${grammarResult?.model ?: verdict.judgeModel}",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF3FB950)
+                                            )
+                                            verdict.requestId?.let { reqId ->
+                                                Text(
+                                                    text = reqId,
+                                                    fontSize = 8.sp,
+                                                    color = Color(0xFF8B949E)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -258,7 +431,7 @@ fun AvatarPlayerScreen(
                     onValueChange = { inputText = it },
                     placeholder = {
                         Text(
-                            text = "Enter spoken sentence (e.g. Encik, apa yang saya boleh tolong?)",
+                            text = "Taip ayat dalam Bahasa Melayu untuk terjemah ke BIM...",
                             fontSize = 12.sp,
                             color = Color(0xFF8B949E)
                         )
