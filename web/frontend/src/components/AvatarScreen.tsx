@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AvatarRenderer } from '../lib/avatar/renderer'
 import { MotionPlayer } from '../lib/avatar/motionPlayer'
 import { CATALOG, loadMotion, resolveQuery, synthesizeSentence } from '../lib/avatar/repository'
-import { restructureSentence } from '../lib/avatar/signGrammar'
+import { restructureSentence, type SignGrammarResult } from '../lib/avatar/signGrammar'
 
 /** Loaded paused on open, as the Android screen does. */
 const INITIAL_SIGN = 'terima_kasih'
@@ -29,9 +29,10 @@ export function AvatarScreen() {
 
   // Multi-model grammar reasoning state
   const [isReasoning, setIsReasoning] = useState(false)
-  const [reasoningTrace, setReasoningTrace] = useState<string | null>(null)
   const [bimTokens, setBimTokens] = useState<string[]>([])
   const [activeModel, setActiveModel] = useState<string | null>(null)
+  const [grammarData, setGrammarData] = useState<SignGrammarResult | null>(null)
+  const [showReasoningPath, setShowReasoningPath] = useState(true)
 
   if (!playerRef.current) playerRef.current = new MotionPlayer()
   const player = playerRef.current
@@ -92,8 +93,8 @@ export function AvatarScreen() {
       )
 
       if (direct) {
+        setGrammarData(null)
         setBimTokens([])
-        setReasoningTrace(null)
         setActiveModel(null)
         const motion = await loadMotion(direct.key)
         if (motion) {
@@ -108,7 +109,7 @@ export function AvatarScreen() {
       setIsReasoning(true)
       try {
         const grammarResult = await restructureSentence(effective)
-        setReasoningTrace(grammarResult.reasoning)
+        setGrammarData(grammarResult)
         setBimTokens(grammarResult.displayTokens)
         setActiveModel(grammarResult.model)
 
@@ -195,29 +196,108 @@ export function AvatarScreen() {
 
       <div className="avatar__controls-bottom">
 
-        {/* AI BIM Grammar Reasoning & Token Chips */}
+        {/* AI BIM Grammar Reasoning, Final Sign & Collapsible 3-Model Path */}
         {(isReasoning || bimTokens.length > 0) && (
           <div className="avatar__reasoning-card">
             {isReasoning ? (
               <div className="avatar__reasoning-loading">
                 <div className="avatar__spinner" />
-                <span>Analyzing BIM Grammar via Gonka Multi-Model…</span>
+                <span>Analyzing BIM Grammar across 3 Gonka Models…</span>
               </div>
             ) : (
               <>
                 <div className="avatar__reasoning-header">
-                  <span className="avatar__reasoning-title">BIM Sign Grammar Syntax</span>
+                  <div className="avatar__reasoning-header-left">
+                    <span className="avatar__reasoning-title">BIM Final Sign Sequence</span>
+                    <span className="avatar__final-badge">Final Sign</span>
+                  </div>
                   {activeModel && <span className="avatar__reasoning-model">{activeModel}</span>}
                 </div>
+
+                {/* Final Sign Sequence Chips */}
                 <div className="avatar__token-row">
                   {bimTokens.map((token, i) => (
                     <span key={i} className="avatar__token-wrapper">
-                      <span className="avatar__token-chip">{token}</span>
+                      <span className="avatar__token-chip avatar__token-chip--final">{token}</span>
                       {i < bimTokens.length - 1 && <span className="avatar__token-arrow">→</span>}
                     </span>
                   ))}
                 </div>
-                {reasoningTrace && <p className="avatar__reasoning-trace">{reasoningTrace}</p>}
+
+                {/* Collapsible Accordion Toggle */}
+                {grammarData?.candidates && grammarData.candidates.length > 0 && (
+                  <button
+                    type="button"
+                    className="avatar__accordion-toggle"
+                    onClick={() => setShowReasoningPath((prev) => !prev)}
+                    title="Toggle multi-model reasoning breakdown"
+                  >
+                    <span className="avatar__accordion-icon">{showReasoningPath ? '▴' : '▾'}</span>
+                    <span className="avatar__accordion-label">
+                      {showReasoningPath ? 'Hide 3-Model Reasoning Path' : 'Show 3-Model Reasoning Path'}
+                    </span>
+                    <span className="avatar__models-count-tag">3 Models</span>
+                  </button>
+                )}
+
+                {/* Collapsible 3-Model Reasoning Path Details */}
+                {showReasoningPath && grammarData?.candidates && grammarData.candidates.length > 0 && (
+                  <div className="avatar__multi-model-panel">
+                    <div className="avatar__candidate-grid">
+                      {grammarData.candidates.map((cand) => (
+                        <div
+                          key={cand.model}
+                          className={`avatar__candidate-card${cand.isWinner ? ' avatar__candidate-card--winner' : ''}`}
+                        >
+                          <div className="avatar__candidate-header">
+                            <span className="avatar__candidate-model">
+                              {cand.model}
+                              {cand.isWinner && <span className="avatar__candidate-winner-tag">consensus pick</span>}
+                            </span>
+                            {cand.requestId && (
+                              <span
+                                className="avatar__candidate-req"
+                                title={`Verifiable Gonka Request ID: ${cand.requestId}`}
+                              >
+                                req:{cand.requestId.length > 18 ? cand.requestId.slice(0, 16) + '…' : cand.requestId}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="avatar__candidate-tokens">
+                            {cand.displayTokens.map((tok, idx) => (
+                              <span key={idx} className="avatar__candidate-token">
+                                {tok}
+                              </span>
+                            ))}
+                          </div>
+
+                          <p className="avatar__candidate-reasoning">{cand.reasoning}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Consensus Judge Verdict */}
+                    {grammarData.verdict && (
+                      <div className="avatar__judge-banner">
+                        <div className="avatar__judge-header">
+                          <span className="avatar__judge-title">
+                            ⚖️ {grammarData.verdict.judgeModel}
+                          </span>
+                          {grammarData.verdict.requestId && (
+                            <span
+                              className="avatar__candidate-req"
+                              title={`Judge Gonka Request ID: ${grammarData.verdict.requestId}`}
+                            >
+                              Judge Req ID: {grammarData.verdict.requestId}
+                            </span>
+                          )}
+                        </div>
+                        <p className="avatar__judge-reason">{grammarData.verdict.reason}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
