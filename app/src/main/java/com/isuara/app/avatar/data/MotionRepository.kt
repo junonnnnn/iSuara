@@ -66,28 +66,57 @@ class MotionRepository(private val context: Context) {
             VocabularyItem("b", "Huruf B", "Letter B", "Alphabet", assetFileName = "b.json"),
             VocabularyItem("c", "Huruf C", "Letter C", "Alphabet", assetFileName = "c.json")
         )
+
+        /**
+         * Semantic and synonym aliases mapping common BIM tokens to available 3D motion assets.
+         */
+        val ALIASES: Map<String, String> = mapOf(
+            "apa" to "apa_khabar",
+            "apa_apa" to "apa_khabar",
+            "bagaimana" to "apa_khabar",
+            "sihat" to "apa_khabar",
+            "sakit" to "suhu",
+            "demam" to "suhu",
+            "batuk" to "suhu",
+            "panas" to "suhu",
+            "anak" to "abang",
+            "lelaki" to "abang",
+            "budak" to "abang",
+            "saudara" to "abang",
+            "tolong" to "tolong",
+            "bantu" to "tolong",
+            "bantuan" to "tolong",
+            "hospital" to "hospital",
+            "klinik" to "hospital",
+            "doktor" to "doktor",
+            "dr" to "doktor",
+            "ubat" to "doktor",
+            "polis" to "hospital",
+            "pegawai" to "doktor"
+        )
     }
 
     private val cache = HashMap<String, BimMotion>()
 
     /**
-     * Loads a motion track by vocabulary key.
+     * Loads a motion track by vocabulary key, resolving aliases if necessary.
      */
     fun loadMotion(key: String): BimMotion? {
-        val cached = cache[key]
+        val resolvedKey = ALIASES[key.trim().lowercase()] ?: key
+        val cached = cache[resolvedKey]
         if (cached != null) return cached
 
-        val item = CATALOG.find { it.key.equals(key, ignoreCase = true) }
-        val fileName = item?.assetFileName ?: if (key.endsWith(".json")) key else "$key.json"
+        val item = CATALOG.find { it.key.equals(resolvedKey, ignoreCase = true) }
+        val fileName = item?.assetFileName ?: if (resolvedKey.endsWith(".json")) resolvedKey else "$resolvedKey.json"
 
         return try {
             val assetPath = "motions/$fileName"
             val stream: InputStream = context.assets.open(assetPath)
             val motion = MotionParser.parseStream(stream)
-            cache[key] = motion
+            cache[resolvedKey] = motion
             motion
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load motion for key '$key' ($fileName)", e)
+            Log.e(TAG, "Failed to load motion for key '$key' -> '$resolvedKey' ($fileName)", e)
             null
         }
     }
