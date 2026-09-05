@@ -116,16 +116,24 @@ object TranslationPrompts {
         {"choice": <index of the best candidate>, "reason": "<one short sentence>"}
     """.trimIndent()
 
-    /** Builds the judge's user turn from the candidates' Malay sentences. */
+    /** Builds the judge's user turn from the candidates' sentences in the active language. */
     fun judgeTurn(
         words: List<String>,
         candidates: List<Translation>,
         emotion: EmotionReading? = null,
+        language: Language = Language.MALAY,
     ): String = buildString {
         append("Glosses: $words")
         emotionLine(emotion)?.let { append("\n").append(it) }
         append("\n\nCandidates:\n")
-        append(candidates.mapIndexed { i, c -> "$i. ${c.ms}" }.joinToString("\n"))
+        append(candidates.mapIndexed { i, c -> "$i. ${c.forLanguage(language)}" }.joinToString("\n"))
+        val langName = when (language) {
+            Language.MALAY -> "Bahasa Melayu"
+            Language.ENGLISH -> "English"
+            Language.MANDARIN -> "Simplified Chinese (简体中文)"
+            Language.TAMIL -> "Tamil (தமிழ்)"
+        }
+        append("\n\nPlease write your one short sentence 'reason' strictly in $langName.")
         append("\n\nOutput:")
     }
 }

@@ -10,14 +10,19 @@ data class JudgeVerdict(
 data class CandidateView(
     /** The model id, e.g. `deepseek-ai/DeepSeek-V4-Flash-0731`. */
     val model: String,
+    /** Full translation in all four languages once answered. */
+    val translation: Translation? = null,
     /** Null while the model is still working. */
     val sentence: String? = null,
     val failed: Boolean = false,
 ) {
-    val isPending: Boolean get() = sentence == null && !failed
+    val isPending: Boolean get() = translation == null && sentence == null && !failed
 
     /** Just the model name, without the vendor prefix, for display. */
     val shortName: String get() = model.substringAfterLast('/')
+
+    fun sentenceFor(language: Language): String? =
+        translation?.forLanguage(language) ?: sentence
 }
 
 /**

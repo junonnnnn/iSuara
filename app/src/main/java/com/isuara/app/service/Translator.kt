@@ -64,7 +64,11 @@ interface Translator {
      *   the sentence is said — and must never add facts the glosses do not
      *   support. Defaulted so callers that have no emotion source are unchanged.
      */
-    suspend fun translate(words: List<String>, emotion: EmotionReading? = null): Translation
+    suspend fun translate(
+        words: List<String>,
+        emotion: EmotionReading? = null,
+        language: Language = Language.MALAY,
+    ): Translation
 
     /**
      * Progress through the pipeline, for the UI to display while waiting.

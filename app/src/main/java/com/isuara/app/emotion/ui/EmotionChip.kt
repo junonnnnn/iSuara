@@ -27,6 +27,8 @@ import com.isuara.app.emotion.EmotionLabel
 import com.isuara.app.emotion.EmotionReading
 import com.isuara.app.ui.googleSansFlex
 
+import com.isuara.app.service.Language
+
 /**
  * The live facial-expression readout, styled to sit beside the FPS badge.
  *
@@ -39,7 +41,11 @@ import com.isuara.app.ui.googleSansFlex
  * observed.
  */
 @Composable
-fun EmotionChip(reading: EmotionReading?, modifier: Modifier = Modifier) {
+fun EmotionChip(
+    reading: EmotionReading?,
+    modifier: Modifier = Modifier,
+    language: Language = Language.MALAY,
+) {
     AnimatedVisibility(
         visible = reading != null,
         enter = fadeIn(),
@@ -61,15 +67,23 @@ fun EmotionChip(reading: EmotionReading?, modifier: Modifier = Modifier) {
                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Spacer(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(accent.copy(alpha = alpha))
-                )
-                Spacer(modifier = Modifier.width(6.dp))
+                if (label.emoji.isNotEmpty()) {
+                    Text(
+                        text = label.emoji,
+                        fontSize = 14.sp,
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                } else {
+                    Spacer(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(accent.copy(alpha = alpha))
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
                 Text(
-                    text = label.descriptorEn.uppercase(),
+                    text = label.localizedName(language).uppercase(),
                     fontFamily = googleSansFlex,
                     color = Color.White.copy(alpha = alpha),
                     fontSize = 12.sp,

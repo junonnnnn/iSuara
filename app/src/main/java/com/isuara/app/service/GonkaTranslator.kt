@@ -72,6 +72,7 @@ class GonkaTranslator(
     override suspend fun translate(
         words: List<String>,
         emotion: EmotionReading?,
+        language: Language,
     ): Translation = withContext(Dispatchers.IO) {
         require(words.isNotEmpty()) { "no glosses to translate" }
 
@@ -112,8 +113,15 @@ class GonkaTranslator(
  * reasoning monologue before the object.
  */
 internal fun gonkaComplete(modelId: String, system: String, user: String): String {
+    // GonkaRouter currently hosts deepseek-ai/DeepSeek-V4-Flash-0731 and MiniMaxAI/MiniMax-M2.7.
+    // If moonshotai/Kimi-K2.6 is requested, map to MiniMaxAI/MiniMax-M2.7 to prevent HTTP 400.
+    val effectiveModel = if (modelId.contains("kimi", ignoreCase = true)) {
+        "MiniMaxAI/MiniMax-M2.7"
+    } else {
+        modelId
+    }
     val params = MessageCreateParams.builder()
-        .model(modelId)
+        .model(effectiveModel)
         .maxTokens(2048L)
         .system(system)
         .addUserMessage(user)

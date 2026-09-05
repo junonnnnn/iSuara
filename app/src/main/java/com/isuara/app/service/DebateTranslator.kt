@@ -67,11 +67,15 @@ class DebateTranslator(
     }
 
     /** Publishes one agent's outcome the moment it lands. */
-    private fun publish(index: Int, sentence: String?, failed: Boolean) {
+    private fun publish(index: Int, translation: Translation?, failed: Boolean) {
         _progress.update { current ->
             current.copy(
                 candidates = current.candidates.mapIndexed { i, c ->
-                    if (i == index) c.copy(sentence = sentence, failed = failed) else c
+                    if (i == index) c.copy(
+                        translation = translation,
+                        sentence = translation?.ms,
+                        failed = failed
+                    ) else c
                 }
             )
         }
@@ -80,6 +84,7 @@ class DebateTranslator(
     override suspend fun translate(
         words: List<String>,
         emotion: EmotionReading?,
+        language: Language,
     ): Translation {
         require(words.isNotEmpty()) { "no glosses to translate" }
 
@@ -98,10 +103,10 @@ class DebateTranslator(
             val results = coroutineScope {
                 agents.mapIndexed { i, agent ->
                     async {
-                        val result = runCatching { agent.translate(words, emotion) }.getOrNull()
-                        publish(i, result?.ms, failed = result == null)
+                        val result = runCatching { agent.translate(words, emotion, language) }.getOrNull()
+                        publish(i, result, failed = result == null)
                         Log.i(TAG, "candidate[$i] ${agentLabels.getOrNull(i)}: " +
-                            (result?.ms ?: "FAILED"))
+                            (result?.forLanguage(language) ?: "FAILED"))
                         result
                     }
                 }.awaitAll()
@@ -125,7 +130,7 @@ class DebateTranslator(
 
             // A failed judge must not discard candidates we already hold; an
             // arbitrary but valid answer beats falling back to raw glosses.
-            val verdict = runCatching { judge(words, candidates, emotion) }
+            val verdict = runCatching { judge(words, candidates, emotion, language) }
                 .onFailure { Log.w(TAG, "judge failed, using first candidate: ${it.message}") }
                 .getOrNull()
 
@@ -159,15 +164,16 @@ class DebateTranslator(
         words: List<String>,
         candidates: List<Translation>,
         emotion: EmotionReading?,
+        language: Language,
     ): JudgeVerdict =
         withContext(Dispatchers.IO) {
             val raw = judgeCall(
                 TranslationPrompts.JUDGE,
-                TranslationPrompts.judgeTurn(words, candidates, emotion),
+                TranslationPrompts.judgeTurn(words, candidates, emotion, language),
             )
             val verdict = TranslationParsing.extractChoice(raw, candidates.size)
             Log.i(TAG, "judge chose [${verdict.choice}] " +
-                "'${candidates[verdict.choice].ms}' — ${verdict.reason}")
+                "'${candidates[verdict.choice].forLanguage(language)}' — ${verdict.reason}")
             verdict
         }
 }

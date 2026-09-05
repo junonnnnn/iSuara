@@ -62,6 +62,7 @@ class GeminiTranslator(
     override suspend fun translate(
         words: List<String>,
         emotion: EmotionReading?,
+        language: Language,
     ): Translation = withContext(Dispatchers.IO) {
         require(words.isNotEmpty()) { "no glosses to translate" }
 

@@ -89,7 +89,7 @@ enum class EmotionLabel(
     NEUTRAL(
         arousal = 0.25f, valence = 0.0f,
         descriptorMs = "neutral", descriptorEn = "neutral",
-        emoji = "",
+        emoji = "😐",
         pitch = 1.0f, rateScale = 1.0f,
         styleDirective = "Say this in a calm, clear, matter-of-fact voice.",
     ),
@@ -116,6 +116,31 @@ enum class EmotionLabel(
      * has exactly one definition — the two must not be able to drift apart.
      */
     val isHighArousal: Boolean get() = arousal >= HIGH_AROUSAL_THRESHOLD
+
+    fun localizedName(language: com.isuara.app.service.Language): String = when (language) {
+        com.isuara.app.service.Language.MALAY -> descriptorMs
+        com.isuara.app.service.Language.ENGLISH -> descriptorEn
+        com.isuara.app.service.Language.MANDARIN -> when (this) {
+            ANGER -> "愤怒"
+            CONTEMPT -> "轻蔑"
+            DISGUST -> "厌恶"
+            FEAR -> "害怕"
+            HAPPINESS -> "开心"
+            NEUTRAL -> "平静"
+            SADNESS -> "悲伤"
+            SURPRISE -> "惊讶"
+        }
+        com.isuara.app.service.Language.TAMIL -> when (this) {
+            ANGER -> "கோபம்"
+            CONTEMPT -> "அலட்சியம்"
+            DISGUST -> "அருவருப்பு"
+            FEAR -> "பயம்"
+            HAPPINESS -> "மகிழ்ச்சி"
+            NEUTRAL -> "அமைதி"
+            SADNESS -> "சோகம்"
+            SURPRISE -> "ஆச்சரியம்"
+        }
+    }
 
     companion object {
         const val HIGH_AROUSAL_THRESHOLD = 0.60f
