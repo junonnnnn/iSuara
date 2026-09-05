@@ -43,7 +43,7 @@
     "Awak",
     "Boleh",
     "Minum",
-    "Sihat",
+    "Tidak Sihat",
     "Malam",
     "Saya",
     "Ayah",
@@ -143,7 +143,7 @@
     "Awak": 40,
     "Boleh": 41,
     "Minum": 42,
-    "Sihat": 43,
+    "Tidak Sihat": 43,
     "Malam": 44,
     "Saya": 45,
     "Ayah": 46,
@@ -243,7 +243,7 @@
     "40": "Awak",
     "41": "Boleh",
     "42": "Minum",
-    "43": "Sihat",
+    "43": "Tidak Sihat",
     "44": "Malam",
     "45": "Saya",
     "46": "Ayah",
@@ -515,10 +515,10 @@
       "zh": "喝",
       "ta": "குடி"
     },
-    "Sihat": {
-      "en": "Healthy",
-      "zh": "健康",
-      "ta": "ஆரோக்கியம்"
+    "Tidak Sihat": {
+      "en": "Unhealthy",
+      "zh": "不健康",
+      "ta": "ஆரோக்கியமற்ற"
     },
     "Malam": {
       "en": "Night",
