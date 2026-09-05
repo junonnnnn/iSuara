@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import com.isuara.app.emotion.EmotionTracker
 import com.isuara.app.service.Language
+import com.isuara.app.avatar.data.MotionRepository
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -72,12 +73,22 @@ class SignPredictor(
         val translationsObj = root.optJSONObject("translations")
         val parsed = mutableMapOf<String, Map<String, String>>()
         if (translationsObj != null) {
-            for (gloss in labels) {
+            val keys = translationsObj.keys()
+            while (keys.hasNext()) {
+                val gloss = keys.next()
                 val entry = translationsObj.optJSONObject(gloss) ?: continue
                 val byLang = mutableMapOf<String, String>()
                 entry.optString("en").takeIf { it.isNotBlank() }?.let { byLang["en"] = it }
                 entry.optString("zh").takeIf { it.isNotBlank() }?.let { byLang["zh"] = it }
-                if (byLang.isNotEmpty()) parsed[gloss] = byLang
+                entry.optString("ta").takeIf { it.isNotBlank() }?.let { byLang["ta"] = it }
+                if (byLang.isNotEmpty()) {
+                    parsed[gloss] = byLang
+                    parsed[gloss.lowercase()] = byLang
+                    parsed[gloss.uppercase()] = byLang
+                    parsed[gloss.trim()] = byLang
+                    parsed[gloss.replace(" ", "_").lowercase()] = byLang
+                    parsed[gloss.replace("_", " ").lowercase()] = byLang
+                }
             }
         }
         glossTranslations = parsed
@@ -93,11 +104,16 @@ class SignPredictor(
      */
     fun glossIn(gloss: String, language: Language): String? {
         val key = language.labelMapKey ?: return null
-        if (gloss == IDLE) return null
+        if (gloss.equals(IDLE, ignoreCase = true)) return null
         // updatePrediction appends "?" to a low-confidence word for display.
-        val clean = gloss.removeSuffix("?")
-        val translated = glossTranslations[clean]?.get(key) ?: return null
-        return if (clean == gloss) translated else "$translated?"
+        val clean = gloss.removeSuffix("?").trim()
+        val normalized = clean.replace("_", " ").lowercase()
+        val translated = glossTranslations[clean]?.get(key)
+            ?: glossTranslations[clean.lowercase()]?.get(key)
+            ?: glossTranslations[normalized]?.get(key)
+            ?: MotionRepository.getLocalizedGloss(clean, language).takeIf { !it.equals(clean, ignoreCase = true) }
+            ?: return null
+        return if (gloss.endsWith("?")) "$translated?" else translated
     }
 
     // We added the isFrontCamera parameter here

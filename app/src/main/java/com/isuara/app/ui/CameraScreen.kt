@@ -52,6 +52,7 @@ import com.isuara.app.service.TranslationStage
 import com.isuara.app.service.CandidateView
 import com.isuara.app.service.DebateProgress
 import com.isuara.app.service.Translator
+import com.isuara.app.service.strings
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
@@ -125,11 +126,9 @@ fun CameraScreen(
                 spokenEmotion = sentenceEmotion
 
                 try {
-                    val rawSentence = words.joinToString(" ")
-                    // No translator configured falls back to the raw Malay
-                    // glosses. A real failure throws into the catch below.
-                    val result = translator?.translate(words, sentenceEmotion)
-                        ?: Translation.ofRawGlosses(rawSentence)
+                    val fallback = ofWords(words, signPredictor)
+                    val result = translator?.translate(words, sentenceEmotion, language)
+                        ?: fallback
                     translation = result
 
                     // Speak only the selected language; the router falls back to
@@ -140,12 +139,11 @@ fun CameraScreen(
                     }
                 } catch (e: Exception) {
                     // If the translator throws (e.g., no internet), fall back to
-                    // the raw glosses, which are Malay — so speak them as Malay.
-                    // The emotion still applies: how it is said does not depend
-                    // on the translator having succeeded.
-                    val rawSentence = words.joinToString(" ")
-                    translation = Translation.ofRawGlosses(rawSentence)
-                    speech.speak(rawSentence, Language.MALAY, rawSentence, sentenceEmotion)
+                    // the localized gloss words across languages.
+                    val fallback = ofWords(words, signPredictor)
+                    translation = fallback
+                    val spoken = fallback.forLanguage(language)
+                    speech.speak(spoken, language, fallback.ms, sentenceEmotion)
                     Log.e(TAG, "Auto-translate error, falling back to raw text", e)
                 } finally {
                     isTranslating = false
@@ -317,7 +315,7 @@ fun CameraScreen(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    EmotionChip(liveEmotion)
+                    EmotionChip(liveEmotion, language = language)
                     IconButton(
                         onClick = { showLandmarks = !showLandmarks },
                         colors = IconButtonDefaults.iconButtonColors(containerColor = if (showLandmarks) Color(0xFF2196F3) else Color.Black.copy(alpha = 0.5f))
@@ -361,24 +359,19 @@ fun CameraScreen(
                 ) {
                     val textColor by animateColorAsState(if (predictionState.isConfident) Color(0xFF4CAF50) else Color.White.copy(alpha = 0.85f), label = "color")
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        val wordText = if (language == Language.MALAY) {
+                            predictionState.currentWord.uppercase()
+                        } else {
+                            (signPredictor.glossIn(predictionState.currentWord, language) ?: predictionState.currentWord).uppercase()
+                        }
                         Text(
-                            text = predictionState.currentWord.uppercase(),
+                            text = wordText,
                             fontFamily = googleSansFlex,
                             color = textColor,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = 2.sp
                         )
-                        signPredictor.glossIn(predictionState.currentWord, language)?.let { translated ->
-                            Text(
-                                text = translated,
-                                fontFamily = googleSansFlex,
-                                color = textColor.copy(alpha = 0.65f),
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                letterSpacing = 1.sp
-                            )
-                        }
                     }
                 }
             }
@@ -393,7 +386,13 @@ fun CameraScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            val displaySentence = predictionState.sentence.joinToString(" ")
+            val displaySentence = if (language == Language.MALAY) {
+                predictionState.sentence.joinToString(" ")
+            } else {
+                predictionState.sentence
+                    .map { signPredictor.glossIn(it, language) ?: it }
+                    .joinToString(if (language == Language.MANDARIN) "" else " ")
+            }
 
             Surface(
                 color = Color.White.copy(alpha = 0.1f),
@@ -408,29 +407,13 @@ fun CameraScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = displaySentence.ifEmpty { "Waiting for signs..." },
+                        text = displaySentence.ifEmpty { language.strings.waitingForSigns },
                         fontFamily = googleSansFlex,
                         color = if (displaySentence.isEmpty()) Color.White.copy(alpha = 0.4f) else Color.White,
                         fontSize = 18.sp,
                         lineHeight = 26.sp,
                         textAlign = TextAlign.Center
                     )
-
-                    // Second row of glosses in the selected language.
-                    if (displaySentence.isNotEmpty() && language.isSecondary) {
-                        val translatedGlosses = predictionState.sentence
-                            .map { signPredictor.glossIn(it, language) ?: it }
-                            .joinToString(" ")
-                        Text(
-                            text = translatedGlosses,
-                            fontFamily = googleSansFlex,
-                            color = Color.White.copy(alpha = 0.65f),
-                            fontSize = 15.sp,
-                            lineHeight = 22.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
 
                     AnimatedVisibility(visible = isTranslating || translation != null) {
                         Column(
@@ -458,8 +441,7 @@ fun CameraScreen(
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = translationStage.label
-                                            .ifEmpty { "Refining grammar..." },
+                                        text = language.strings.refiningGrammar,
                                         fontFamily = googleSansFlex,
                                         color = ACCENT,
                                         fontSize = 14.sp,
@@ -473,8 +455,14 @@ fun CameraScreen(
                                         ?.label?.emoji?.takeIf { it.isNotEmpty() }
                                     val emojiSuffix = if (emoji != null) " $emoji" else ""
 
+                                    val targetText = if (language == Language.MALAY) {
+                                        "${t.ms}$emojiSuffix"
+                                    } else {
+                                        "${t.forLanguage(language)}$emojiSuffix"
+                                    }
+
                                     Text(
-                                        text = "${t.ms}$emojiSuffix",
+                                        text = targetText,
                                         fontFamily = googleSansFlex,
                                         color = Color(0xFF64B5F6),
                                         fontSize = 18.sp,
@@ -482,18 +470,6 @@ fun CameraScreen(
                                         lineHeight = 26.sp,
                                         textAlign = TextAlign.Center
                                     )
-                                    if (language.isSecondary) {
-                                        Text(
-                                            text = "${t.forLanguage(language)}$emojiSuffix",
-                                            fontFamily = googleSansFlex,
-                                            color = Color(0xFF64B5F6).copy(alpha = 0.75f),
-                                            fontSize = 15.sp,
-                                            fontWeight = FontWeight.Normal,
-                                            lineHeight = 22.sp,
-                                            textAlign = TextAlign.Center,
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        )
-                                    }
                                 }
 
                                 // The reasoning is secondary once the answer is
@@ -515,9 +491,9 @@ fun CameraScreen(
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Text(
                                             text = if (reasoningOpen) {
-                                                "Hide reasoning"
+                                                language.strings.hideReasoning
                                             } else {
-                                                "Show reasoning"
+                                                language.strings.showReasoning
                                             },
                                             fontFamily = googleSansFlex,
                                             color = Color.White.copy(alpha = 0.55f),
@@ -533,7 +509,7 @@ fun CameraScreen(
                             // from two places would give Compose two call sites
                             // and reset the per-step expand state between them.
                             if (hasDebate && (isTranslating || reasoningOpen)) {
-                                DebatePanel(debate, translationStage)
+                                DebatePanel(debate, translationStage, language)
                             }
                         }
                     }
@@ -603,7 +579,7 @@ fun CameraScreen(
                     colors = IconButtonDefaults.filledIconButtonColors(containerColor = Color.White.copy(alpha = 0.12f)),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Icon(Icons.Default.Delete, contentDescription = "Clear", tint = Color.White)
+                    Icon(Icons.Default.Delete, contentDescription = language.strings.clear, tint = Color.White)
                 }
 
                 Button(
@@ -616,9 +592,9 @@ fun CameraScreen(
                             spokenEmotion = sentenceEmotion
                             scope.launch {
                                 try {
-                                    val rawSentence = words.joinToString(" ")
-                                    val result = translator?.translate(words, sentenceEmotion)
-                                        ?: Translation.ofRawGlosses(rawSentence)
+                                    val fallback = ofWords(words, signPredictor)
+                                    val result = translator?.translate(words, sentenceEmotion, language)
+                                        ?: fallback
                                     translation = result
 
                                     val spoken = result.forLanguage(language)
@@ -626,9 +602,10 @@ fun CameraScreen(
                                         speech.speak(spoken, language, result.ms, sentenceEmotion)
                                     }
                                 } catch (e: Exception) {
-                                    val rawSentence = words.joinToString(" ")
-                                    translation = Translation.ofRawGlosses(rawSentence)
-                                    speech.speak(rawSentence, Language.MALAY, rawSentence, sentenceEmotion)
+                                    val fallback = ofWords(words, signPredictor)
+                                    translation = fallback
+                                    val spoken = fallback.forLanguage(language)
+                                    speech.speak(spoken, language, fallback.ms, sentenceEmotion)
                                     Log.e(TAG, "Manual translate error", e)
                                 } finally {
                                     isTranslating = false
@@ -651,7 +628,7 @@ fun CameraScreen(
                     ),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text("Translate", fontFamily = googleSansFlex, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(language.strings.translate, fontFamily = googleSansFlex, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
 
                 FloatingActionButton(
@@ -674,7 +651,7 @@ fun CameraScreen(
                     shape = RoundedCornerShape(16.dp),
                     elevation = FloatingActionButtonDefaults.elevation(0.dp)
                 ) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "Speak")
+                    Icon(Icons.Default.PlayArrow, contentDescription = language.strings.speak)
                 }
             }
         }
@@ -699,7 +676,11 @@ private enum class DebateStep { MODEL_REASONING, JUDGING, NONE }
  * accordion stuck for the next.
  */
 @Composable
-private fun DebatePanel(debate: DebateProgress, stage: TranslationStage) {
+private fun DebatePanel(
+    debate: DebateProgress,
+    stage: TranslationStage,
+    language: Language = Language.MALAY,
+) {
     val auto = when {
         !debate.isActive -> DebateStep.NONE
         !debate.allResolved -> DebateStep.MODEL_REASONING
@@ -713,7 +694,7 @@ private fun DebatePanel(debate: DebateProgress, stage: TranslationStage) {
     LaunchedEffect(auto) { override = null }
     val open = override ?: auto
 
-    val answered = debate.candidates.count { it.sentence != null }
+    val answered = debate.candidates.count { it.translation != null || it.sentence != null }
     val winner = debate.verdict?.let { debate.candidates.getOrNull(it.choice) }
 
     Column(
@@ -724,13 +705,13 @@ private fun DebatePanel(debate: DebateProgress, stage: TranslationStage) {
     ) {
         DebateStepRow(
             index = 1,
-            title = "Model Reasoning",
+            title = language.strings.modelReasoning,
             expanded = open == DebateStep.MODEL_REASONING,
             active = auto == DebateStep.MODEL_REASONING,
             summary = when {
                 debate.candidates.isEmpty() -> ""
-                answered == debate.candidates.size -> "${debate.candidates.size} models"
-                else -> "$answered of ${debate.candidates.size}"
+                answered == debate.candidates.size -> "${debate.candidates.size}"
+                else -> "$answered / ${debate.candidates.size}"
             },
             onToggle = {
                 override = if (open == DebateStep.MODEL_REASONING) {
@@ -741,13 +722,13 @@ private fun DebatePanel(debate: DebateProgress, stage: TranslationStage) {
             },
         ) {
             debate.candidates.forEachIndexed { index, candidate ->
-                ModelRow(candidate, isWinner = debate.verdict?.choice == index)
+                ModelRow(candidate, isWinner = debate.verdict?.choice == index, language = language)
             }
         }
 
         DebateStepRow(
             index = 2,
-            title = "Judging",
+            title = language.strings.judging,
             expanded = open == DebateStep.JUDGING,
             active = auto == DebateStep.JUDGING,
             summary = winner?.shortName.orEmpty(),
@@ -767,7 +748,7 @@ private fun DebatePanel(debate: DebateProgress, stage: TranslationStage) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = stage.label.ifEmpty { "Weighing interpretations…" },
+                        text = language.strings.weighingInterpretations,
                         fontFamily = googleSansFlex,
                         color = ACCENT,
                         fontSize = 12.sp,
@@ -782,7 +763,8 @@ private fun DebatePanel(debate: DebateProgress, stage: TranslationStage) {
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                     )
-                    winner?.sentence?.let {
+                    val winnerSentence = winner?.sentenceFor(language)
+                    winnerSentence?.let {
                         Text(
                             text = it,
                             fontFamily = googleSansFlex,
@@ -862,7 +844,11 @@ private fun DebateStepRow(
 
 /** One model's row: pending, answered, or failed. */
 @Composable
-private fun ModelRow(candidate: CandidateView, isWinner: Boolean) {
+private fun ModelRow(
+    candidate: CandidateView,
+    isWinner: Boolean,
+    language: Language = Language.MALAY,
+) {
     Column(modifier = Modifier.padding(bottom = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (candidate.isPending) {
@@ -891,14 +877,15 @@ private fun ModelRow(candidate: CandidateView, isWinner: Boolean) {
                 fontWeight = if (isWinner) FontWeight.Bold else FontWeight.Medium,
             )
         }
+        val sentenceText = candidate.sentenceFor(language)
         Text(
             text = when {
-                candidate.failed -> "no answer"
-                candidate.sentence == null -> "thinking…"
-                else -> candidate.sentence
+                candidate.failed -> language.strings.candidateNoAnswer
+                sentenceText == null -> language.strings.candidateThinking
+                else -> sentenceText
             },
             fontFamily = googleSansFlex,
-            color = if (candidate.sentence == null || candidate.failed) {
+            color = if (sentenceText == null || candidate.failed) {
                 MUTED
             } else {
                 Color.White.copy(alpha = 0.9f)
@@ -908,4 +895,15 @@ private fun ModelRow(candidate: CandidateView, isWinner: Boolean) {
             modifier = Modifier.padding(start = 20.dp, top = 1.dp),
         )
     }
+}
+
+/**
+ * Builds a 4-language fallback Translation directly from gloss keywords using SignPredictor.
+ */
+private fun ofWords(words: List<String>, signPredictor: SignPredictor): Translation {
+    val ms = words.joinToString(" ")
+    val en = words.map { signPredictor.glossIn(it, Language.ENGLISH) ?: it }.joinToString(" ")
+    val zh = words.map { signPredictor.glossIn(it, Language.MANDARIN) ?: it }.joinToString("")
+    val ta = words.map { signPredictor.glossIn(it, Language.TAMIL) ?: it }.joinToString(" ")
+    return Translation(ms = ms, en = en, zh = zh, ta = ta)
 }

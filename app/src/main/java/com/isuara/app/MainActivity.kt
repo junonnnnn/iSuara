@@ -33,6 +33,7 @@ import com.isuara.app.service.SpeechRouter
 import com.isuara.app.service.gonkaDebate
 import com.isuara.app.service.LanguagePreference
 import com.isuara.app.service.Language
+import com.isuara.app.service.strings
 import com.isuara.app.service.Translator
 import com.isuara.app.service.TtsService
 import com.isuara.app.ui.CameraScreen
@@ -127,6 +128,7 @@ class MainActivity : ComponentActivity() {
                     if (predictor != null && speech != null) {
                         val languagePrefs = languagePreference
                         var currentTab by remember { mutableIntStateOf(0) } // 0 = Camera, 1 = 3D Avatar
+                        var selectedLanguage by remember { mutableStateOf(languagePrefs?.get() ?: Language.MALAY) }
 
                         Scaffold(
                             bottomBar = {
@@ -144,7 +146,7 @@ class MainActivity : ComponentActivity() {
                                                 contentDescription = "Camera"
                                             )
                                         },
-                                        label = { Text("Sign → Voice", fontSize = 12.sp, fontWeight = if (currentTab == 0) FontWeight.Bold else FontWeight.Normal) },
+                                        label = { Text(selectedLanguage.strings.tabSignToVoice, fontSize = 12.sp, fontWeight = if (currentTab == 0) FontWeight.Bold else FontWeight.Normal) },
                                         colors = NavigationBarItemDefaults.colors(
                                             selectedIconColor = Color.White,
                                             selectedTextColor = Color(0xFF58A6FF),
@@ -163,7 +165,7 @@ class MainActivity : ComponentActivity() {
                                                 contentDescription = "Avatar"
                                             )
                                         },
-                                        label = { Text("Text → Sign", fontSize = 12.sp, fontWeight = if (currentTab == 1) FontWeight.Bold else FontWeight.Normal) },
+                                        label = { Text(selectedLanguage.strings.tabTextToSign, fontSize = 12.sp, fontWeight = if (currentTab == 1) FontWeight.Bold else FontWeight.Normal) },
                                         colors = NavigationBarItemDefaults.colors(
                                             selectedIconColor = Color.White,
                                             selectedTextColor = Color(0xFF58A6FF),
@@ -186,13 +188,19 @@ class MainActivity : ComponentActivity() {
                                         translator = translator,
                                         speech = speech,
                                         emotionTracker = emotionTracker,
-                                        initialLanguage = languagePrefs?.get() ?: Language.MALAY,
-                                        onLanguageChange = { languagePrefs?.set(it) }
+                                        initialLanguage = selectedLanguage,
+                                        onLanguageChange = {
+                                            selectedLanguage = it
+                                            languagePrefs?.set(it)
+                                        }
                                     )
                                 } else {
                                     com.isuara.app.avatar.ui.AvatarPlayerScreen(
-                                        initialLanguage = languagePrefs?.get() ?: Language.MALAY,
-                                        onLanguageChange = { languagePrefs?.set(it) }
+                                        initialLanguage = selectedLanguage,
+                                        onLanguageChange = {
+                                            selectedLanguage = it
+                                            languagePrefs?.set(it)
+                                        }
                                     )
                                 }
                             }
