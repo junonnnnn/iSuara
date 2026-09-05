@@ -31,7 +31,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.isuara.app.avatar.data.MotionRepository
 import com.isuara.app.avatar.engine.MotionPlayer
 import com.isuara.app.avatar.gl.AvatarGLSurfaceView
-import com.isuara.app.avatar.grammar.GeminiSignGrammarService
+import com.isuara.app.avatar.grammar.GonkaSignGrammarService
 import kotlinx.coroutines.launch
 
 @Composable
@@ -40,7 +40,7 @@ fun AvatarPlayerScreen(
 ) {
     val context = LocalContext.current
     val repository = remember { MotionRepository(context) }
-    val grammarService = remember { GeminiSignGrammarService() }
+    val grammarService = remember { GonkaSignGrammarService() }
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
@@ -80,7 +80,7 @@ fun AvatarPlayerScreen(
             return
         }
 
-        // 2. Multi-word Sentence Synthesis via Gemini Multi-Model Reasoning
+        // 2. Multi-word Sentence Synthesis via Gonka Multi-Model Reasoning
         coroutineScope.launch {
             isReasoning = true
             try {
@@ -152,48 +152,6 @@ fun AvatarPlayerScreen(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Quick Demo Scenarios (Police & Doctor)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFF1E2A3A), RoundedCornerShape(12.dp))
-                        .border(1.dp, Color(0xFF388BFD), RoundedCornerShape(12.dp))
-                        .clickable(enabled = !isReasoning) {
-                            inputText = "Encik, apa yang saya boleh tolong?"
-                            triggerPlay("Encik, apa yang saya boleh tolong?", startPlaying = true)
-                        }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "🚨 Polis: Boleh tolong?",
-                        fontSize = 11.sp,
-                        color = Color(0xFF58A6FF),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFF192F23), RoundedCornerShape(12.dp))
-                        .border(1.dp, Color(0xFF3FB950), RoundedCornerShape(12.dp))
-                        .clickable(enabled = !isReasoning) {
-                            inputText = "Anak awak sakit apa sekarang?"
-                            triggerPlay("Anak awak sakit apa sekarang?", startPlaying = true)
-                        }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "🩺 Doktor: Anak sakit apa?",
-                        fontSize = 11.sp,
-                        color = Color(0xFF3FB950),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-
             // Reasoning Status or Token Chips
             AnimatedVisibility(
                 visible = isReasoning || bimTokens.isNotEmpty(),
@@ -219,7 +177,7 @@ fun AvatarPlayerScreen(
                                 color = Color(0xFF58A6FF)
                             )
                             Text(
-                                text = "Analyzing BIM Grammar via Gemini Multi-Model…",
+                                text = "Analyzing BIM Grammar via Gonka Multi-Model…",
                                 fontSize = 12.sp,
                                 color = Color(0xFF8B949E)
                             )
