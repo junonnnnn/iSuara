@@ -1,0 +1,1429 @@
+/*
+ * Design tokens transcribed directly from ui/CameraScreen.kt.
+ *
+ * Every value below has a named counterpart in the Compose source, and the
+ * variable names say which. That is the point: when the app's design changes,
+ * the diff here should be mechanical rather than a re-interpretation. Do not
+ * "improve" these values — the goal is parity with the phone, not a nicer
+ * palette.
+ *
+ * Compose dp/sp map 1:1 to CSS px at baseline density.
+ */
+
+:root {
+  /* Colour(0xFF……) literals, verbatim */
+  --confident: #4caf50; /* Color(0xFF4CAF50) — confident word, buffer bar, speak FAB */
+  --unsure: #ff9800; /* Color(0xFFFF9800) — low-confidence bar */
+  --accent: #2196f3; /* Color(0xFF2196F3) — Translate, active toggle, spinner */
+  --translation: #64b5f6; /* Color(0xFF64B5F6) — translated sentence */
+
+  /* Compose named colours */
+  --black: #000000; /* Color.Black */
+  --white: #ffffff; /* Color.White */
+  --dark-gray: #444444; /* Color.DarkGray */
+  --pose: #00ff00; /* Color.Green */
+  --hand-left: #ff00ff; /* Color.Magenta */
+  --hand-right: #00ffff; /* Color.Cyan */
+
+  /* .copy(alpha = …) variants */
+  --scrim: rgb(0 0 0 / 0.5); /* Black 0.5 — HUD chips */
+  --surface: rgb(255 255 255 / 0.1); /* White 0.1 — card, icon buttons */
+  --divider: rgb(255 255 255 / 0.2); /* White 0.2 */
+  --text-empty: rgb(255 255 255 / 0.3); /* White 0.3 — placeholder */
+  --text-secondary: rgb(255 255 255 / 0.55); /* White 0.55 — second gloss row */
+  --text-unsure: rgb(255 255 255 / 0.7); /* White 0.7 — unconfident word */
+
+  /* dp */
+  --r-card: 12px; /* RoundedCornerShape(12.dp) */
+  --r-chip: 16px; /* RoundedCornerShape(16.dp) — FPS badge */
+  --button-h: 56px; /* uniformButtonHeight */
+  --gap: 16px; /* the dominant Spacer/padding value */
+
+  /* Width of the side panel once the layout goes two-column. Wide enough for
+     the 56px button row plus the Translate pill at its natural label width. */
+  --panel-w: 380px;
+
+  /* Below this the window is too narrow for a side panel and the layout stacks
+     instead. Matches the media queries further down. */
+  --wide: 900px;
+
+  color-scheme: dark;
+}
+
+/*
+ * The same typeface the app loads through R.font.google_sans_flex, copied out
+ * of res/font by scripts/copy-assets.mjs. `swap` so a slow 3.9MB load shows
+ * fallback text rather than nothing.
+ */
+@font-face {
+  font-family: 'Google Sans Flex';
+  /* Relative so Vite fingerprints it and rewrites the URL for whatever `base`
+     the site is deployed under — an absolute /fonts/… path 404s on GitHub
+     Pages, which serves from /<repo>/ rather than the domain root. */
+  src: url('./assets/google_sans_flex.ttf') format('truetype');
+  font-weight: 100 1000;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--black);
+  color: var(--white);
+  font-family: 'Google Sans Flex', ui-sans-serif, system-ui, 'Segoe UI', Roboto,
+    'Noto Sans', 'Noto Sans SC', 'Noto Sans Tamil', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/*
+ * A page, not a phone.
+ *
+ * The earlier layout was a 480px handset column centred in the window, which is
+ * what parity with the Android build asked for. On a browser it wasted almost
+ * everything: the preview was a stamp in the middle of a wide black field, and
+ * on a short window the fixed 3:4 box did not fit at all.
+ *
+ * So the app fills the viewport and the camera takes whatever the controls do
+ * not. The controls themselves are untouched — same 56px buttons, same pill,
+ * same colours and radii — they are simply arranged to suit the window: beside
+ * the preview when there is width for it, beneath it when there is not.
+ */
+.app {
+  width: 100%;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--black);
+  overflow: hidden;
+}
+
+/*
+ * One tab's content. Both stay in the tree — `hidden` removes the inactive one
+ * from layout without unmounting it, so switching tabs neither drops the camera
+ * stream nor throws away the avatar's WebGL context.
+ */
+.screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /*
+   * A hard guarantee that the navigation bar stays reachable. `.camera` is
+   * positioned, so anything it overflows paints *over* the non-positioned nav
+   * that follows it, rather than being covered by it — clipping here means the
+   * worst a too-tall tab can do is crop itself.
+   */
+  overflow: hidden;
+}
+
+.screen[hidden] {
+  display: none;
+}
+
+/* ── camera ── */
+
+/*
+ * Takes every pixel the layout has left over, in both directions. There is no
+ * fixed aspect ratio here on purpose: the box is whatever shape the window
+ * leaves, and the picture inside fits itself to it.
+ */
+.camera {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--black);
+  overflow: hidden;
+}
+
+/*
+ * --pic-x / --pic-y are the black bars left by `contain`, written here from
+ * CameraView every frame. The overlays below inset by them so they sit against
+ * the picture rather than the edge of the stage. They default to 0, which is
+ * both the correct value before the first frame and the right answer whenever
+ * the frame happens to fill the stage exactly.
+ */
+.camera__stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  --pic-x: 0px;
+  --pic-y: 0px;
+}
+
+.camera__video,
+.camera__overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * `contain`, not `cover`.
+ *
+ * The phone cropped the frame to fill a portrait box, which is right on a
+ * handset held upright. Here the box is usually wider than the webcam's own
+ * 4:3, so cropping would throw away the sides of the picture — including the
+ * hands, which is exactly where the signs are. Containing it shows the whole
+ * frame at the largest size that fits, and the overlay reproduces the same
+ * arithmetic so the skeleton stays on the body.
+ */
+.camera__video {
+  object-fit: contain;
+  display: block;
+}
+
+.camera__overlay {
+  pointer-events: none;
+}
+
+.camera__placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  background: var(--dark-gray);
+  color: var(--text-unsure);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.camera__error {
+  color: var(--unsure);
+  max-width: 30ch;
+}
+
+/* Row(fillMaxWidth).statusBarsPadding().padding(16.dp), inset to the picture */
+.camera__hud {
+  position: absolute;
+  inset: calc(var(--pic-y) + var(--gap)) calc(var(--pic-x) + var(--gap)) auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.camera__hud-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.camera__hud-actions {
+  display: flex;
+  gap: 8px; /* Arrangement.spacedBy(8.dp) */
+}
+
+/*
+ * The observed expression. Tinted only when high-arousal, because that is the
+ * distinction the translator's register rule actually turns on — a calm reading
+ * should not draw the eye.
+ */
+.badge--emotion {
+  text-transform: capitalize;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.badge--aroused {
+  color: var(--unsure);
+  font-weight: 700;
+}
+
+/* Surface(Black 0.5, RoundedCornerShape(16.dp)) + Text(12.sp, Bold) */
+.badge {
+  padding: 6px 12px; /* padding(horizontal = 12.dp, vertical = 6.dp) */
+  border-radius: var(--r-chip);
+  background: var(--scrim);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* IconButton — Material3 default 40.dp touch target */
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: var(--scrim);
+  color: var(--white);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.icon-button--active {
+  background: var(--accent); /* Color(0xFF2196F3) when landmarks are on */
+}
+
+/* LinearProgressIndicator(height 4.dp, track Transparent), across the picture */
+.camera__buffer {
+  position: absolute;
+  inset: auto var(--pic-x) var(--pic-y);
+  height: 4px;
+  background: transparent;
+}
+
+.camera__buffer-fill {
+  height: 100%;
+  background: var(--confident);
+  transition: width 90ms linear;
+}
+
+/* ── centre panel: Column(weight(1f)).padding(16.dp) ── */
+
+/*
+ * Stacked layout (narrow window): the panel sits under the preview and takes
+ * only the height its contents need, so the camera keeps the rest. It never
+ * compresses — the word row, the confidence bar and the button row are fixed
+ * sizes, and squeezing those is always the wrong trade.
+ */
+.panel {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--gap);
+  min-height: 0;
+  /* Keeps the sentence card from stretching to the full width of a wide window
+     while still in the stacked layout. */
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* Box(height = 60.dp) */
+.current {
+  height: 60px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 24.sp, FontWeight.Black, letterSpacing 2.sp, uppercase */
+.current__word {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--text-unsure);
+  transition: color 160ms ease;
+}
+
+.current__word--confident {
+  color: var(--confident);
+}
+
+/* 15.sp, Medium, letterSpacing 1.sp, alpha 0.65 of the word colour */
+.current__secondary {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  opacity: 0.65;
+  color: inherit;
+}
+
+/* LinearProgressIndicator(width 100.dp, height 2.dp, clip RoundedCornerShape(1.dp)) */
+.confidence {
+  width: 100px;
+  height: 2px;
+  flex: none;
+  border-radius: 1px;
+  background: var(--dark-gray);
+  overflow: hidden;
+}
+
+.confidence__fill {
+  height: 100%;
+  background: var(--unsure);
+  transition:
+    width 180ms ease,
+    background 160ms ease;
+}
+
+.confidence__fill--confident {
+  background: var(--confident);
+}
+
+/* Surface(White 0.1, RoundedCornerShape(12.dp)).fillMaxWidth().weight(1f) */
+.card {
+  width: 100%;
+  flex: 1;
+  /* In the stacked layout the panel is only as tall as its contents, so without
+     a floor the card collapses to the height of one line of text. It still
+     scrolls internally rather than pushing the buttons off. */
+  min-height: 88px;
+  margin-top: var(--gap); /* Spacer(16.dp) */
+  padding: var(--gap);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /*
+   * Top-aligned, not centred. A scroll container that centres its content
+   * clips the overflowing top and makes it unreachable — you cannot scroll
+   * above the start of a centred flex item. That never bit while the debate was
+   * collapsed, because the card only ever held a line or two; with every
+   * interpreter now on screen it would. The empty state centres itself instead,
+   * below.
+   */
+  justify-content: flex-start;
+  gap: 0;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: var(--r-card);
+  text-align: center;
+}
+
+/* 18.sp, lineHeight 24.sp */
+.card__glosses {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+/* Alone in the card, so auto margins centre it — the effect the card used to
+   get from justify-content, without the clipping that came with it. */
+.card__glosses--empty {
+  margin: auto 0;
+  color: var(--text-empty);
+}
+
+/* 15.sp, lineHeight 20.sp, White 0.55 */
+.card__glosses-secondary {
+  margin: 0;
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--text-secondary);
+}
+
+/* HorizontalDivider(White 0.2).padding(vertical = 8.dp) inside a 8.dp-top Column */
+.card__result {
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--divider);
+}
+
+.card__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px; /* Spacer(width = 8.dp) */
+  margin: 0;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+/* CircularProgressIndicator(size 16.dp, strokeWidth 2.dp) */
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top-color: var(--accent);
+  border-right-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+  flex: none;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 18.sp, Medium, Color(0xFF64B5F6) */
+.card__translation {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--translation);
+}
+
+/* 15.sp, Normal, alpha 0.7, padding(top = 4.dp) */
+.card__translation-secondary {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--translation);
+  opacity: 0.7;
+}
+
+/* ── controls: Row(spacedBy 12.dp), every child 56.dp tall ── */
+
+.controls {
+  width: 100%;
+  flex: none;
+  margin-top: var(--gap); /* Spacer(16.dp) */
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.controls__language {
+  position: relative;
+  flex: none;
+}
+
+/* FilledIconButton(size 56.dp, containerColor White 0.1) */
+.chip {
+  width: var(--button-h);
+  height: var(--button-h);
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--white);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.chip:hover {
+  background: rgb(255 255 255 / 0.16);
+}
+
+/* Button(weight(1f), height 56.dp, containerColor 0xFF2196F3), 16.sp Bold */
+.button {
+  flex: 1;
+  height: var(--button-h);
+  min-width: 0;
+  border: none;
+  border-radius: 100px; /* Material3 Button default is a full pill */
+  background: var(--accent);
+  color: var(--white);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    opacity 120ms ease;
+}
+
+.button:hover:not(:disabled) {
+  background: #1e88e5;
+}
+
+/* Material3 disabled container: onSurface at 12% over the surface */
+.button:disabled {
+  background: rgb(255 255 255 / 0.12);
+  color: rgb(255 255 255 / 0.38);
+  cursor: not-allowed;
+}
+
+/* FloatingActionButton(size 56.dp, containerColor 0xFF4CAF50, elevation 0.dp) */
+.fab {
+  width: var(--button-h);
+  height: var(--button-h);
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--r-card); /* M3 FAB uses a 16.dp-ish rounded square */
+  background: var(--confident);
+  color: var(--white);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.fab:hover:not(:disabled) {
+  background: #43a047;
+}
+
+.fab:disabled {
+  background: rgb(255 255 255 / 0.12);
+  color: rgb(255 255 255 / 0.38);
+  cursor: not-allowed;
+}
+
+/* DropdownMenu — Material3 surface, opens upward above the 56.dp row */
+.menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 180px;
+  padding: 8px 0;
+  background: #1f1f1f;
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.6);
+  z-index: 10;
+}
+
+.menu__item {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  color: var(--white);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu__item:hover {
+  background: rgb(255 255 255 / 0.08);
+}
+
+.menu__item--active {
+  font-weight: 700;
+}
+
+/* ── debate accordion ── */
+
+/*
+ * Separated from the translation above it by a rule rather than by distance,
+ * because the card is centred text and this block is left-aligned — without a
+ * boundary the change in alignment reads as a mistake.
+ */
+.debate {
+  width: 100%;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider);
+  text-align: left;
+}
+
+/*
+ * A label, not a control. It was a blue accent-coloured button when it opened
+ * the panel; now that nothing is hidden it should recede, so it takes the
+ * secondary text colour and the small-caps treatment used for section labels.
+ */
+.debate__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.debate__heading {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-empty);
+}
+
+.debate__gonka-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.18);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.debate__model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.debate__req-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+}
+
+.debate__agents {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.debate__agent {
+  padding: 8px 10px;
+  border-left: 2px solid var(--divider);
+  background: rgb(255 255 255 / 0.04);
+  border-radius: 0 8px 8px 0;
+}
+
+/* The winner is marked so the judge's pick is visible at a glance. */
+.debate__agent--chosen {
+  border-left-color: var(--confident);
+  background: rgb(76 175 80 / 0.08);
+}
+
+.debate__model {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--text-secondary);
+}
+
+/* Names the judge's pick in words, so it does not rest on the green tint
+   alone — that tint is invisible to a red-green colour-blind reader. */
+.debate__chosen-tag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgb(76 175 80 / 0.18);
+  color: var(--confident);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.debate__sentence {
+  display: block;
+  margin-top: 3px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  /* Was var(--text), which is not defined anywhere — the declaration was
+     dropped and the colour came from inheritance, which happened to be right.
+     Named explicitly so it stays right. */
+  color: var(--white);
+}
+
+.debate__pending,
+.debate__failed {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-empty);
+}
+
+.debate__failed {
+  color: var(--unsure);
+}
+
+.debate__verdict {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.debate__verdict strong {
+  color: var(--confident);
+}
+
+.debate__verdict-block {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  border-left: 2px solid var(--confident);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.debate__verdict-req {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  color: #818cf8;
+  opacity: 0.85;
+}
+
+.debate__note {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--text-empty);
+}
+
+/* ── bottom navigation (MainActivity.kt NavigationBar) ── */
+
+.nav {
+  flex: none;
+  display: flex;
+  background: #0d1117; /* containerColor */
+  padding: 12px 0 14px;
+}
+
+.nav__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: rgb(255 255 255 / 0.6);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Material 3 puts a filled capsule behind the selected icon. */
+.nav__indicator {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 32px;
+  border-radius: 16px;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.nav__item--active .nav__indicator {
+  background: #1f6feb; /* indicatorColor */
+  color: #ffffff; /* selectedIconColor */
+}
+
+.nav__label {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.nav__item--active .nav__label {
+  color: #58a6ff; /* selectedTextColor */
+  font-weight: 700;
+}
+
+/* ── avatar screen (AvatarPlayerScreen.kt) ── */
+
+.avatar {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #090d13; /* matches the GL clear colour */
+  overflow: hidden;
+}
+
+.avatar__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none; /* drag orbits rather than scrolling the page */
+  cursor: grab;
+}
+
+.avatar__canvas:active {
+  cursor: grabbing;
+}
+
+.avatar__hud {
+  position: absolute;
+  inset: 12px 12px auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.avatar__word {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.5);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.avatar__status {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.6);
+  color: var(--unsure);
+  font-size: 13px;
+}
+
+/* Bottom input bar: 24dp top corners, translucent #161B22 over the viewport. */
+.avatar__bar {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: rgb(22 27 34 / 0.94);
+  border-top: 1px solid rgb(48 54 61 / 0.2);
+  border-radius: 24px 24px 0 0;
+}
+
+.avatar__input {
+  flex: 1;
+  min-width: 0;
+  height: 50px;
+  padding: 0 18px;
+  border: 1px solid #30363d; /* unfocusedBorderColor */
+  border-radius: 25px;
+  background: #0d1117;
+  color: #ffffff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.avatar__input::placeholder {
+  color: #8b949e;
+}
+
+.avatar__input:focus {
+  outline: none;
+  border-color: #58a6ff; /* focusedBorderColor */
+}
+
+.avatar__send {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: #238636;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.avatar__send:hover:not(:disabled) {
+  background: #2ea043;
+}
+
+.avatar__send:disabled {
+  background: #30363d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ── Avatar BIM Grammar Reasoning & Presets ── */
+
+.avatar__controls-bottom {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 16px;
+  background: rgb(22 27 34 / 0.96);
+  border-top: 1px solid rgb(48 54 61 / 0.3);
+  border-radius: 24px 24px 0 0;
+  max-width: 720px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  backdrop-filter: blur(12px);
+  z-index: 10;
+}
+
+.avatar__presets {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.avatar__preset-btn {
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 120ms ease;
+  border: 1px solid transparent;
+}
+
+.avatar__preset-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.avatar__preset-btn--police {
+  background: #1e2a3a;
+  border-color: #388bfd;
+  color: #58a6ff;
+}
+
+.avatar__preset-btn--police:hover:not(:disabled) {
+  background: #27384e;
+}
+
+.avatar__preset-btn--doctor {
+  background: #192f23;
+  border-color: #3fb950;
+  color: #3fb950;
+}
+
+.avatar__preset-btn--doctor:hover:not(:disabled) {
+  background: #213f2f;
+}
+
+.avatar__reasoning-card {
+  padding: 10px 12px;
+  background: #0d1117;
+  border: 1px solid rgb(88 166 255 / 0.35);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.avatar__reasoning-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #8b949e;
+}
+
+.avatar__spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #58a6ff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: avatar-spin 0.8s linear infinite;
+}
+
+@keyframes avatar-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.avatar__reasoning-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.avatar__reasoning-title {
+  font-weight: 700;
+  color: #58a6ff;
+}
+
+.avatar__reasoning-model {
+  font-weight: 600;
+  color: #3fb950;
+  font-size: 10px;
+}
+
+.avatar__token-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 2px 0;
+}
+
+.avatar__token-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.avatar__token-chip {
+  padding: 3px 8px;
+  background: #21262d;
+  border: 1px solid #388bfd;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.avatar__token-arrow {
+  color: #58a6ff;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.avatar__reasoning-trace {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-style: italic;
+  color: #8b949e;
+  line-height: 1.35;
+}
+
+.avatar__reasoning-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar__final-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  background: rgb(63 185 80 / 0.15);
+  border: 1px solid rgb(63 185 80 / 0.5);
+  border-radius: 4px;
+  color: #3fb950;
+}
+
+.avatar__token-chip--final {
+  background: #161b22;
+  border-color: #58a6ff;
+  color: #58a6ff;
+  font-size: 13px;
+  padding: 4px 10px;
+}
+
+.avatar__accordion-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 10px;
+  margin-top: 4px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  color: #c9d1d9;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.avatar__accordion-toggle:hover {
+  background: #21262d;
+  border-color: #58a6ff;
+  color: #ffffff;
+}
+
+.avatar__accordion-icon {
+  font-size: 11px;
+  color: #58a6ff;
+  margin-right: 6px;
+}
+
+.avatar__accordion-label {
+  flex: 1;
+  text-align: left;
+}
+
+.avatar__models-count-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: rgb(88 166 255 / 0.15);
+  border-radius: 4px;
+  color: #58a6ff;
+}
+
+.avatar__multi-model-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #21262d;
+  animation: fadeIn 0.25s ease-out;
+}
+
+.avatar__candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .avatar__candidate-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.avatar__candidate-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  font-size: 11px;
+  transition: border-color 0.2s ease;
+}
+
+.avatar__candidate-card--winner {
+  border-color: rgb(63 185 80 / 0.6);
+  background: rgb(63 185 80 / 0.04);
+}
+
+.avatar__candidate-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.avatar__candidate-model {
+  font-weight: 700;
+  color: #f0f6fc;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.avatar__candidate-winner-tag {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 5px;
+  background: rgb(63 185 80 / 0.2);
+  border-radius: 3px;
+  color: #3fb950;
+  text-transform: uppercase;
+}
+
+.avatar__candidate-req {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 9px;
+  color: #8b949e;
+  background: #0d1117;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.avatar__candidate-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.avatar__candidate-token {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  background: #21262d;
+  border: 1px solid #388bfd;
+  border-radius: 4px;
+  color: #ffffff;
+}
+
+.avatar__candidate-reasoning {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.3;
+  color: #8b949e;
+}
+
+.avatar__judge-banner {
+  padding: 8px 10px;
+  background: #0d1117;
+  border: 1px solid rgb(63 185 80 / 0.4);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.avatar__judge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.avatar__judge-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #3fb950;
+}
+
+.avatar__judge-reason {
+  margin: 0;
+  font-size: 11px;
+  color: #c9d1d9;
+  line-height: 1.35;
+}
+
+
+.avatar__input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/*
+ * Degraded-state notice. Has no counterpart in the app — the phone cannot reach
+ * a state where the model is missing. Kept deliberately quiet and it disappears
+ * entirely once the backend loads the model.
+ */
+.notice {
+  margin: var(--gap) var(--gap) 0;
+  padding: 12px 14px;
+  background: rgb(255 152 0 / 0.1);
+  border-radius: var(--r-card);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.notice strong {
+  color: var(--unsure);
+  font-weight: 700;
+}
+
+.notice details {
+  margin-top: 6px;
+}
+
+.notice details p {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-empty);
+}
+
+.notice code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 0.4);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.notice summary {
+  cursor: pointer;
+  color: var(--text-empty);
+  font-size: 12px;
+}
+
+.notice pre {
+  margin: 8px 0 0;
+  padding: 10px;
+  max-height: 160px;
+  overflow: auto;
+  background: rgb(0 0 0 / 0.4);
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--text-empty);
+}
+
+/* ── wide window: preview and controls side by side ── */
+
+/*
+ * The only structural change in the whole design, and it is pure arrangement:
+ * every control keeps its size, colour and radius, and simply moves from under
+ * the preview to beside it. Below this width there is not enough room for a
+ * column of controls next to a picture, so the stacked layout above stands.
+ *
+ * The breakpoint is on width alone. A tall narrow window stacks, a short wide
+ * one splits, which is what suits each shape — and the split is what stops a
+ * short window running out of height, since the controls no longer sit below
+ * the preview at all.
+ */
+@media (min-width: 900px) {
+  .screen--camera {
+    flex-direction: row;
+  }
+
+  .panel {
+    /* Fixed column, not a share of the width: the controls are fixed-size, so
+       giving them a proportion of a wide window would only add empty space. */
+    flex: 0 0 var(--panel-w);
+    width: var(--panel-w);
+    max-width: none;
+    margin: 0;
+    min-height: 0;
+    /* Hairline against the preview, so the picture reads as a distinct surface
+       rather than bleeding into the controls. */
+    border-left: 1px solid var(--divider);
+  }
+
+  /* Two tabs each taking half of a 1440px window puts them in opposite corners,
+     miles from anything they relate to. Give them a fixed width and centre the
+     pair; the tabs themselves are unchanged. */
+  .nav {
+    justify-content: center;
+    gap: 24px;
+  }
+
+  .nav__item {
+    flex: 0 0 160px;
+  }
+
+  /* Same reasoning for the avatar's entry field: a text box stretched across a
+     1440px window looks like a mistake, and the send button ends up a screen
+     away from where you are typing. */
+  .avatar__bar {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+}
+
+/* ── narrow window: preview above the controls ── */
+
+@media (max-width: 899px) {
+  /*
+   * Size the camera area to the frame's own shape rather than letting it take
+   * all the leftover height. Width-limited here, so filling the height would
+   * only add black above and below the picture and push the sentence card down
+   * for nothing. Sized this way there are no bars at all, and the height the
+   * camera does not need goes to the card instead.
+   *
+   * --video-aspect comes from CameraView; the 4/3 fallback covers the moment
+   * before the first frame and any camera that never reports a size.
+   */
+  .camera {
+    flex: 0 1 auto;
+    width: 100%;
+    aspect-ratio: var(--video-aspect, 4 / 3);
+  }
+
+  /*
+   * The panel takes the remainder and refuses to shrink, so on a window too
+   * short for both, the camera is what gives way — a smaller picture, never a
+   * clipped button row.
+   */
+  .panel {
+    flex: 1 0 auto;
+  }
+}
