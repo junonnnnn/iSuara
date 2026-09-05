@@ -28,13 +28,15 @@ the code, and the keys are never sent to a browser.
 
 | Name | Kind | Value |
 |---|---|---|
-| `ALLOWED_ORIGINS` | variable | the site's origin, e.g. `https://isuara.netlify.app` — no trailing slash |
-| `GEMINI_API_KEY_1` | secret | one key per debate agent, each from a different Google Cloud project |
-| `GEMINI_API_KEY_2` | secret | |
-| `GEMINI_API_KEY_3` | secret | |
+| `ALLOWED_ORIGINS` | variable | the site's origin, e.g. `https://isuara.vercel.app` — no trailing slash |
+| `GONKA_API_KEY` | secret | the GonkaRouter key; serves all three debate agents and the judge |
 
-Without the keys recognition still works; translation falls back to showing and
+Without the key recognition still works; translation falls back to showing and
 speaking the raw detected glosses, exactly as the Android build does.
+
+A Space has no `local.properties`, so unlike a local checkout the environment
+variable is the only route — `config.gonka_api_key()` finds nothing to fall back
+to here.
 
 `ALLOWED_ORIGINS` is not optional once a site calls this from another origin —
 the browser blocks every response without it.

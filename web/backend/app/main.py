@@ -5,7 +5,7 @@ It does exactly the two things the browser cannot do itself:
 
   1. Sign inference — the TFLite model needs the Flex delegate (see
      inference.py), which no browser TFLite runtime ships.
-  2. Gemini calls — the API keys must not be in a public bundle.
+  2. GonkaRouter calls — the API key must not be in a public bundle.
 
 Everything else from the Android app (camera, MediaPipe landmark extraction,
 feature normalization, text-to-speech) stays client-side, so raw video never

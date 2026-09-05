@@ -3,6 +3,12 @@
 
 pytest==8.4.2
 
+# The gonka_client and debate tests are `async def` under @pytest.mark.asyncio.
+# Without this plugin pytest cannot run them at all — it reports "async def
+# functions are not natively supported" and fails them, so the two tests
+# covering the router silently never execute.
+pytest-asyncio==1.4.0
+
 # TensorFlow is pinned to a NARROW window, and both bounds are real.
 #
 # Only two paths need it, neither of them deployed: loading a .keras export, and

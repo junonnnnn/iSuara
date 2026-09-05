@@ -8,7 +8,7 @@ Browser                                        Backend (FastAPI)
 ─────────────────────────────────────          ──────────────────────────
 getUserMedia                                   TFLite / Keras classifier
   → MediaPipe Tasks Vision (Pose + Hands)        (30×780 → 98 classes)
-  → 258 keypoints per frame                    Gemini debate translator
+  → 258 keypoints per frame                    GonkaRouter debate translator
   → FrameNormalizer (EMA, 30-frame window)       (3 personas + judge)
   → 30×780 feature window  ──── WebSocket ───→ /ws/predict
   → gloss buffer           ──── NDJSON ──────→ /api/translate
@@ -28,7 +28,7 @@ Two things the browser genuinely cannot do:
    cell in `iSuara_Train_V3_1_5_WithOutput.ipynb`), so the flatbuffer contains
    `FlexTensorListReserve`, `FlexTensorListSetItem` and `FlexTensorListStack`.
    These need the TFLite Flex delegate, which no browser TFLite runtime ships.
-2. **Hold the Gemini keys.** The Android build reads them from `BuildConfig`,
+2. **Hold the router credential.** The Android build reads it from `BuildConfig`,
    which is fine on a device the user owns. A browser bundle is public.
 
 Everything else — camera, MediaPipe, all five normalization stages, text-to-speech
@@ -46,7 +46,7 @@ py -3.13 -m venv .venv
 .venv/Scripts/activate          # Windows;  source .venv/bin/activate elsewhere
 pip install -r requirements.txt
 
-cp .env.example .env            # then add your Gemini keys
+cp .env.example .env            # then add your GonkaRouter key
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
@@ -239,7 +239,7 @@ web/
 │   ├── app/
 │   │   ├── main.py          FastAPI: /ws/predict, /api/translate, /api/health, /models
 │   │   ├── inference.py     ← ml/SignInterpreter.kt
-│   │   ├── translator.py    ← service/{GeminiClients,GeminiTranslator,DebateTranslator}.kt
+│   │   ├── translator.py    ← service/{GonkaClient,GonkaTranslator,DebateTranslator}.kt
 │   │   ├── prompts.py       ← service/TranslationPrompts.kt
 │   │   ├── parsing.py       ← service/TranslationParsing.kt
 │   │   └── config.py

@@ -107,14 +107,3 @@ def gonka_api_key() -> str:
     if not key:
         key = _read_local_properties_key()
     return key
-
-
-def gemini_keys() -> list[str]:
-    """Legacy Gemini keys fallback."""
-    raw = [
-        os.getenv("GEMINI_API_KEY_1") or os.getenv("GEMINI_API_KEY") or "",
-        os.getenv("GEMINI_API_KEY_2", ""),
-        os.getenv("GEMINI_API_KEY_3", ""),
-    ]
-    return [k.strip() for k in raw if k.strip()]
-

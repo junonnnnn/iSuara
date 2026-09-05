@@ -86,9 +86,10 @@ export interface Translation {
   /**
    * A one-sentence English delivery directive for the voice engine.
    *
-   * English regardless of the spoken language — that is Google's guidance for
-   * Gemini-TTS style prompts, and it keeps the field usable when the display has
-   * been switched to Tamil or Mandarin.
+   * English regardless of the spoken language. The directive is read by the
+   * voice engine rather than spoken aloud, so its language is independent of the
+   * sentence's — which is what keeps the field usable when the display has been
+   * switched to Tamil or Mandarin.
    */
   style?: string | null
 }

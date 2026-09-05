@@ -10,8 +10,8 @@
  *
  * This is a URL, not a credential, so baking it into the bundle is correct.
  * Nothing secret may ever go in a VITE_ variable: Vite inlines them into the
- * JavaScript it ships, where anyone can read them. The Gemini keys stay on the
- * server and are never sent to the browser.
+ * JavaScript it ships, where anyone can read them. The router credential stays
+ * on the server and is never sent to the browser.
  *
  * When this is set, requests become cross-origin, so the backend must name the
  * frontend's origin in ALLOWED_ORIGINS or the browser will block the response.

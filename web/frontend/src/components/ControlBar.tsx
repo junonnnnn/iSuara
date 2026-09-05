@@ -103,7 +103,7 @@ export function ControlBar({
         title={
           translationEnabled
             ? 'Restructure the glosses into a sentence'
-            : 'No Gemini API key configured — the raw glosses are used instead'
+            : 'No translator configured — the raw glosses are used instead'
         }
       >
         Translate
