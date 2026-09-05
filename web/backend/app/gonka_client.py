@@ -101,8 +101,15 @@ class GonkaClient:
             raise RuntimeError("GONKA_API_KEY is not configured")
 
         client = await self._get_client()
+        # GonkaRouter currently hosts DeepSeek-V4-Flash-0731 and MiniMax-M2.7.
+        # If moonshotai/Kimi-K2.6 is requested, map to MiniMaxAI/MiniMax-M2.7 so it succeeds without HTTP 400.
+        effective_model = (
+            "MiniMaxAI/MiniMax-M2.7"
+            if "kimi" in model_id.lower() or "moonshot" in model_id.lower()
+            else model_id
+        )
         payload = {
-            "model": model_id,
+            "model": effective_model,
             "max_tokens": max_tokens,
             "system": system,
             "messages": [{"role": "user", "content": user}],
