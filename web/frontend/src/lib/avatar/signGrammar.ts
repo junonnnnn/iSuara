@@ -84,7 +84,11 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
   // ── Demo Hardcoded Sentence 1: ENCIK, SAYA BOLEH TOLONG APA? ──
   if ((cleanStr.includes('encik') && cleanStr.includes('tolong') && cleanStr.includes('apa')) ||
       cleanStr === 'encik saya boleh tolong apa' ||
-      cleanStr === 'encik apa yang saya boleh tolong'
+      cleanStr === 'encik apa yang saya boleh tolong' ||
+      (cleanStr.includes('help') && (cleanStr.includes('how') || cleanStr.includes('what') || cleanStr.includes('can') || cleanStr.includes('sir'))) ||
+      cleanStr.includes('what can i help') || cleanStr.includes('how can i help') ||
+      cleanStr.includes('帮') || cleanStr.includes('协助') || cleanStr.includes('有什么可以帮') ||
+      cleanStr.includes('உதவ')
   ) {
     const tokens = ['encik', 'saya', 'boleh', 'tolong', 'apa']
     const displayTokens = ['Encik', 'Saya', 'Boleh', 'Tolong', 'Apa']
@@ -129,8 +133,12 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
   }
 
   // ── Demo Hardcoded Sentence 2: APA-KHABAR, HARI-INI AWAK DATANG HOSPITAL KENAPA? ──
-  if ((cleanStr.includes('hospital') && (cleanStr.includes('kenapa') || cleanStr.includes('datang') || cleanStr.includes('awak') || cleanStr.includes('apa khabar'))) ||
-      cleanStr.includes('apa khabar hari ini awak datang hospital kenapa')
+  if ((cleanStr.includes('hospital') && (cleanStr.includes('kenapa') || cleanStr.includes('datang') || cleanStr.includes('awak') || cleanStr.includes('apa khabar') || cleanStr.includes('why') || cleanStr.includes('today') || cleanStr.includes('come'))) ||
+      cleanStr.includes('apa khabar hari ini awak datang hospital kenapa') ||
+      (cleanStr.includes('hospital') && cleanStr.includes('why')) ||
+      (cleanStr.includes('how are you') && cleanStr.includes('hospital')) ||
+      (cleanStr.includes('医院') && (cleanStr.includes('为什么') || cleanStr.includes('来') || cleanStr.includes('你好') || cleanStr.includes('看病') || cleanStr.includes('今天'))) ||
+      cleanStr.includes('மருத்துவமனை')
   ) {
     const tokens = ['apa_khabar', 'hari_ini', 'awak', 'datang', 'hospital', 'kenapa']
     const displayTokens = ['Apa-Khabar', 'Hari-Ini', 'Awak', 'Datang', 'Hospital', 'Kenapa']
