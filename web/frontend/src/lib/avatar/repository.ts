@@ -138,6 +138,16 @@ export const CATALOG: VocabularyItem[] = [
   { key: 'mereka', title: 'Mereka', translation: 'They / Them', category: 'Daily Conversation', assetFileName: 'mereka.json' },
   { key: 'rumah', title: 'Rumah', translation: 'Home / House', category: 'Places', assetFileName: 'rumah.json' },
   { key: 'benda', title: 'Benda', translation: 'Things / Items', category: 'Daily Conversation', assetFileName: 'benda.json' },
+  { key: 'saya', title: 'Saya', translation: 'I / Me', category: 'Daily Conversation', assetFileName: 'saya.json' },
+  { key: 'awak', title: 'Awak', translation: 'You', category: 'Daily Conversation', assetFileName: 'awak.json' },
+  { key: 'datang', title: 'Datang', translation: 'Come / Arrive', category: 'Daily Conversation', assetFileName: 'datang.json' },
+  { key: 'yang', title: 'Yang', translation: 'Which / That', category: 'Daily Conversation', assetFileName: 'yang.json' },
+
+  // Synthesized Dual-Version Continuous Sentences
+  { key: 'sentence_1_bim_encik_saya_boleh_tolong_apa', title: 'BIM: Encik, Saya Boleh Tolong Apa?', translation: 'Sir, what can I help you with? (BIM)', category: 'Sentences', assetFileName: 'sentence_1_bim_encik_saya_boleh_tolong_apa.json' },
+  { key: 'sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa', title: 'BIM: Apa-Khabar, Hari-Ini Awak Datang Hospital Kenapa?', translation: 'Hello, why did you come to the hospital today? (BIM)', category: 'Sentences', assetFileName: 'sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json' },
+  { key: 'sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong', title: 'KTBM: Encik Apa Yang Saya Boleh Tolong', translation: 'Sir, what can I help you with? (KTBM)', category: 'Sentences', assetFileName: 'sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong.json' },
+  { key: 'sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini', title: 'KTBM: Apa Khabar Kenapa Datang Hospital Hari Ini', translation: 'Hello, why did you come to the hospital today? (KTBM)', category: 'Sentences', assetFileName: 'sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini.json' },
 ]
 
 /**
