@@ -66,6 +66,16 @@ class MotionRepository(private val context: Context) {
             VocabularyItem("b", "Huruf B", "Letter B", "Alphabet", assetFileName = "b.json"),
             VocabularyItem("c", "Huruf C", "Letter C", "Alphabet", assetFileName = "c.json")
         )
+        // Vocabulary aliases for continuous grammatical sentences
+        val ALIASES: Map<String, String> = mapOf(
+            "apa" to "apa_khabar",
+            "sakit" to "suhu",
+            "demam" to "suhu",
+            "encik" to "awak",
+            "anak" to "abang",
+            "perut" to "makan",
+            "sakit_perut" to "makan"
+        )
     }
 
     private val cache = HashMap<String, BimMotion>()
@@ -74,20 +84,24 @@ class MotionRepository(private val context: Context) {
      * Loads a motion track by vocabulary key.
      */
     fun loadMotion(key: String): BimMotion? {
-        val cached = cache[key]
+        val cleanKey = key.trim().lowercase().replace(" ", "_")
+        val cached = cache[cleanKey]
         if (cached != null) return cached
 
-        val item = CATALOG.find { it.key.equals(key, ignoreCase = true) }
-        val fileName = item?.assetFileName ?: if (key.endsWith(".json")) key else "$key.json"
+        val resolvedKey = ALIASES[cleanKey] ?: cleanKey
+        val item = CATALOG.find { it.key.equals(cleanKey, ignoreCase = true) }
+            ?: CATALOG.find { it.key.equals(resolvedKey, ignoreCase = true) }
+
+        val fileName = item?.assetFileName ?: if (resolvedKey.endsWith(".json")) resolvedKey else "$resolvedKey.json"
 
         return try {
             val assetPath = "motions/$fileName"
             val stream: InputStream = context.assets.open(assetPath)
             val motion = MotionParser.parseStream(stream)
-            cache[key] = motion
+            cache[cleanKey] = motion
             motion
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load motion for key '$key' ($fileName)", e)
+            Log.e(TAG, "Failed to load motion for key '$cleanKey' ($fileName)", e)
             null
         }
     }
