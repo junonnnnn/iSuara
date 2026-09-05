@@ -212,23 +212,32 @@ async def restructure_avatar(request: AvatarRestructureRequest) -> dict:
 
     user_turn = f'Input: "{request.sentence}"\nOutput:'
     try:
-        raw_text, req_id, _ = await translator.gonka.complete(
-            model=config.DEFAULT_MODEL,
+        # Keyword names and the return shape both have to match
+        # GonkaClient.complete: it takes `model_id` (not `model`), takes no
+        # `temperature`, and returns a GonkaResult rather than a tuple. Any of
+        # those three raises TypeError, which the except below would swallow —
+        # sending every request to the fallback while still looking healthy.
+        res = await translator.gonka.complete(
+            model_id=config.DEFAULT_MODEL,
             system=BIM_GRAMMAR_SYSTEM,
             user=user_turn,
             max_tokens=300,
-            temperature=0.1,
         )
+        raw_text = res.text
         # Parse JSON from output
         start = raw_text.find("{")
         end = raw_text.rfind("}")
         if start != -1 and end != -1 and start < end:
             obj = json.loads(raw_text[start : end + 1])
             obj["model"] = f"GonkaRouter ({config.DEFAULT_MODEL})"
-            obj["requestId"] = req_id
+            obj["requestId"] = res.request_id
             return obj
+        log.warning("Gonka avatar restructure returned no JSON object: %.120s", raw_text)
     except Exception as e:
-        log.warning("Gonka avatar restructure failed: %s", e)
+        # Type included deliberately: several httpx transport errors stringify
+        # to nothing, so "%s" alone logs a blank line and the fallback then
+        # looks like a decision rather than a failure.
+        log.warning("Gonka avatar restructure failed: %s: %s", type(e).__name__, e)
 
     return _fallback_restructure(request.sentence)
 
