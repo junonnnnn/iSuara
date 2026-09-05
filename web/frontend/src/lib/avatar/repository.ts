@@ -164,6 +164,10 @@ export const ALIASES: Record<string, string> = {
   bantu: 'tolong',
   bantuan: 'tolong',
   lari: 'berlari',
+  'apa-khabar': 'apa_khabar',
+  'hari-ini': 'hari_ini',
+  'sakit-perut': 'sakit_perut',
+  'sakit-kepala': 'sakit_kepala',
 }
 
 /** Frames inserted between two words so the hands travel rather than jump (8 frames = 0.14s fast, natural transition). */
@@ -195,6 +199,11 @@ export async function preloadCommonMotions(): Promise<void> {
     'tahu',
     'tidak',
     'doktor',
+    'datang',
+    'hospital',
+    'hari_ini',
+    'apa_khabar',
+    'yang',
   ]
   await Promise.allSettled(common.map((k) => loadMotion(k)))
 }
@@ -204,7 +213,7 @@ void preloadCommonMotions()
 
 /** Loads a clip by vocabulary key, resolving aliases if necessary. */
 export async function loadMotion(key: string): Promise<BimMotion | null> {
-  const cleanKey = key.trim().toLowerCase().replace(/[.,?!;]/g, '')
+  const cleanKey = key.trim().toLowerCase().replace(/[.,?!;]/g, '').replace(/[-\s]+/g, '_')
   const resolvedKey = ALIASES[cleanKey] ?? cleanKey
   const cached = cache.get(resolvedKey)
   if (cached) return cached
@@ -245,7 +254,28 @@ export function searchVocabulary(query: string): VocabularyItem[] {
  * sentence.
  */
 export async function synthesizeSentence(words: string[]): Promise<BimMotion | null> {
-  const loaded = await Promise.all(words.map((w) => loadMotion(w)))
+  const normalizedWords = words.map((w) =>
+    w.trim().toLowerCase().replace(/[.,?!;]/g, '').replace(/[-\s]+/g, '_'),
+  )
+
+  // 1. Direct precompiled whole sentence match check
+  const joinedKey = normalizedWords.join('_')
+  const sentenceMap: Record<string, string> = {
+    encik_saya_boleh_tolong_apa: 'sentence_1_bim_encik_saya_boleh_tolong_apa.json',
+    apa_khabar_hari_ini_awak_datang_hospital_kenapa:
+      'sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json',
+    encik_apa_yang_saya_boleh_tolong: 'sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong.json',
+    apa_khabar_kenapa_datang_hospital_hari_ini:
+      'sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini.json',
+  }
+  const precompiled = sentenceMap[joinedKey]
+  if (precompiled) {
+    const motion = await loadMotion(precompiled)
+    if (motion) return motion
+  }
+
+  // 2. Synthesize individual motions
+  const loaded = await Promise.all(normalizedWords.map((w) => loadMotion(w)))
   const motions = loaded.filter((m): m is BimMotion => m !== null)
 
   if (motions.length === 0) return null

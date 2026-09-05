@@ -32,7 +32,7 @@ export function AvatarScreen() {
   const [bimTokens, setBimTokens] = useState<string[]>([])
   const [activeModel, setActiveModel] = useState<string | null>(null)
   const [grammarData, setGrammarData] = useState<SignGrammarResult | null>(null)
-  const [showReasoningPath, setShowReasoningPath] = useState(true)
+  const [showReasoningPath, setShowReasoningPath] = useState(false)
 
   if (!playerRef.current) playerRef.current = new MotionPlayer()
   const player = playerRef.current
@@ -271,8 +271,6 @@ export function AvatarScreen() {
                               </span>
                             ))}
                           </div>
-
-                          <p className="avatar__candidate-reasoning">{cand.reasoning}</p>
                         </div>
                       ))}
                     </div>
@@ -293,7 +291,6 @@ export function AvatarScreen() {
                             </span>
                           )}
                         </div>
-                        <p className="avatar__judge-reason">{grammarData.verdict.reason}</p>
                       </div>
                     )}
                   </div>

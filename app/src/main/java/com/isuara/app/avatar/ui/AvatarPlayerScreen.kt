@@ -58,7 +58,7 @@ fun AvatarPlayerScreen(
     var bimTokens by remember { mutableStateOf<List<String>>(emptyList()) }
     var activeModelLabel by remember { mutableStateOf<String?>(null) }
     var grammarResult by remember { mutableStateOf<SignGrammarResult?>(null) }
-    var showReasoningPath by remember { mutableStateOf(true) }
+    var showReasoningPath by remember { mutableStateOf(false) }
 
     // Play helper with AI BIM grammar reasoning for sentences
     fun triggerPlay(query: String, startPlaying: Boolean = true) {
@@ -380,16 +380,6 @@ fun AvatarPlayerScreen(
                                                 }
                                             }
                                         }
-
-                                        // Candidate reasoning
-                                        if (cand.reasoning.isNotBlank()) {
-                                            Text(
-                                                text = cand.reasoning,
-                                                fontSize = 10.sp,
-                                                color = Color(0xFF8B949E),
-                                                lineHeight = 13.sp
-                                            )
-                                        }
                                     }
                                 }
 
@@ -400,7 +390,7 @@ fun AvatarPlayerScreen(
                                             .fillMaxWidth()
                                             .background(Color(0x1A238636), RoundedCornerShape(8.dp))
                                             .border(1.dp, Color(0x663FB950), RoundedCornerShape(8.dp))
-                                            .padding(8.dp),
+                                            .padding(horizontal = 8.dp, vertical = 6.dp),
                                         verticalArrangement = Arrangement.spacedBy(3.dp)
                                     ) {
                                         Row(
@@ -409,7 +399,7 @@ fun AvatarPlayerScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                text = "⚖️ Consensus Judge: ${verdict.judgeModel}",
+                                                text = "⚖️ Consensus Pick: ${grammarResult?.model ?: verdict.judgeModel}",
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFF3FB950)
@@ -422,12 +412,6 @@ fun AvatarPlayerScreen(
                                                 )
                                             }
                                         }
-                                        Text(
-                                            text = verdict.reason,
-                                            fontSize = 10.sp,
-                                            color = Color(0xFFC9D1D9),
-                                            lineHeight = 13.sp
-                                        )
                                     }
                                 }
                             }

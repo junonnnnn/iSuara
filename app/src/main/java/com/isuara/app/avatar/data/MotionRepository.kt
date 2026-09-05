@@ -163,7 +163,11 @@ class MotionRepository(private val context: Context) {
             "saudara" to "keluarga",
             "bantu" to "tolong",
             "bantuan" to "tolong",
-            "lari" to "berlari"
+            "lari" to "berlari",
+            "apa-khabar" to "apa_khabar",
+            "hari-ini" to "hari_ini",
+            "sakit-perut" to "sakit_perut",
+            "sakit-kepala" to "sakit_kepala"
         )
     }
 
@@ -173,7 +177,7 @@ class MotionRepository(private val context: Context) {
      * Loads a motion track by vocabulary key, resolving aliases if necessary.
      */
     fun loadMotion(key: String): BimMotion? {
-        val cleanKey = key.trim().lowercase().replace(Regex("[.,?!;]"), "")
+        val cleanKey = key.trim().lowercase().replace(Regex("[.,?!;]"), "").replace(Regex("[-\\s]+"), "_")
         val resolvedKey = ALIASES[cleanKey] ?: cleanKey
         val cached = cache[resolvedKey]
         if (cached != null) return cached
@@ -210,7 +214,25 @@ class MotionRepository(private val context: Context) {
      * Synthesizes a continuous sentence by joining multiple vocabulary words with a fast 8-frame co-articulation bridge.
      */
     fun synthesizeSentence(words: List<String>): BimMotion? {
-        val motions = words.mapNotNull { loadMotion(it) }
+        val normalizedWords = words.map {
+            it.trim().lowercase().replace(Regex("[.,?!;]"), "").replace(Regex("[-\\s]+"), "_")
+        }
+
+        // Direct precompiled sentence check
+        val joinedKey = normalizedWords.joinToString("_")
+        val precompiled = when (joinedKey) {
+            "encik_saya_boleh_tolong_apa" -> "sentence_1_bim_encik_saya_boleh_tolong_apa"
+            "apa_khabar_hari_ini_awak_datang_hospital_kenapa" -> "sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa"
+            "encik_apa_yang_saya_boleh_tolong" -> "sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong"
+            "apa_khabar_kenapa_datang_hospital_hari_ini" -> "sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini"
+            else -> null
+        }
+        if (precompiled != null) {
+            val motion = loadMotion(precompiled)
+            if (motion != null) return motion
+        }
+
+        val motions = normalizedWords.mapNotNull { loadMotion(it) }
         if (motions.isEmpty()) return null
         if (motions.size == 1) return motions[0]
 
