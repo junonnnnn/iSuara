@@ -220,11 +220,15 @@ class MotionRepository(private val context: Context) {
 
         // Direct precompiled sentence check
         val joinedKey = normalizedWords.joinToString("_")
-        val precompiled = when (joinedKey) {
-            "encik_saya_boleh_tolong_apa" -> "sentence_1_bim_encik_saya_boleh_tolong_apa"
-            "apa_khabar_hari_ini_awak_datang_hospital_kenapa" -> "sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa"
-            "encik_apa_yang_saya_boleh_tolong" -> "sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong"
-            "apa_khabar_kenapa_datang_hospital_hari_ini" -> "sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini"
+        val precompiled = when {
+            joinedKey == "encik_saya_boleh_tolong_apa" || (joinedKey.contains("encik") && joinedKey.contains("tolong") && joinedKey.contains("apa")) ->
+                "sentence_1_bim_encik_saya_boleh_tolong_apa"
+            joinedKey == "apa_khabar_hari_ini_awak_datang_hospital_kenapa" || (joinedKey.contains("hospital") && (joinedKey.contains("kenapa") || joinedKey.contains("datang"))) ->
+                "sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa"
+            joinedKey == "encik_apa_yang_saya_boleh_tolong" ->
+                "sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong"
+            joinedKey == "apa_khabar_kenapa_datang_hospital_hari_ini" ->
+                "sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini"
             else -> null
         }
         if (precompiled != null) {
