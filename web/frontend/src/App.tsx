@@ -248,7 +248,10 @@ export default function App() {
       </div>
 
       <div className="screen" hidden={tab !== 'avatar'}>
-        <AvatarScreen />
+        <AvatarScreen
+          language={language}
+          onLanguageChange={handleLanguageChange}
+        />
       </div>
 
       <BottomNav tab={tab} onChange={setTab} />

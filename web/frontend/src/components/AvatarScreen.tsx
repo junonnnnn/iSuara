@@ -13,11 +13,14 @@ import { AvatarRenderer } from '../lib/avatar/renderer'
 import { MotionPlayer } from '../lib/avatar/motionPlayer'
 import { CATALOG, loadMotion, resolveQuery, synthesizeSentence } from '../lib/avatar/repository'
 import { restructureSentence, type SignGrammarResult } from '../lib/avatar/signGrammar'
+import { LANGUAGE_ORDER, LANGUAGES, type LanguageCode, type LanguageDef } from '../lib/language'
 
-/** Loaded paused on open, as the Android screen does. */
-const INITIAL_SIGN = 'terima_kasih'
+interface AvatarScreenProps {
+  language?: LanguageDef
+  onLanguageChange?: (code: LanguageCode) => void
+}
 
-export function AvatarScreen() {
+export function AvatarScreen({ language = LANGUAGES.MALAY, onLanguageChange }: AvatarScreenProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const rendererRef = useRef<AvatarRenderer | null>(null)
   const playerRef = useRef<MotionPlayer | null>(null)
@@ -33,6 +36,26 @@ export function AvatarScreen() {
   const [activeModel, setActiveModel] = useState<string | null>(null)
   const [grammarData, setGrammarData] = useState<SignGrammarResult | null>(null)
   const [showReasoningPath, setShowReasoningPath] = useState(false)
+
+  // Language dropdown menu state
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [menuOpen])
 
   if (!playerRef.current) playerRef.current = new MotionPlayer()
   const player = playerRef.current
@@ -63,20 +86,6 @@ export function AvatarScreen() {
       observer.disconnect()
       renderer.dispose()
       rendererRef.current = null
-    }
-  }, [player])
-
-  // ── initial clip, paused ──
-  useEffect(() => {
-    let cancelled = false
-    loadMotion(INITIAL_SIGN).then((motion) => {
-      if (cancelled || !motion) return
-      player.isLooping = false
-      player.setMotion(motion, false)
-      setActiveWord(motion.word)
-    })
-    return () => {
-      cancelled = true
     }
   }, [player])
 
@@ -308,11 +317,53 @@ export function AvatarScreen() {
             void play(input)
           }}
         >
+          {/* Language selector chip matching Sign -> Voice */}
+          <div className="controls__language" ref={menuRef}>
+            <button
+              type="button"
+              className="chip"
+              style={{ width: 44, height: 44, borderRadius: 14, background: 'rgba(255, 255, 255, 0.12)' }}
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              title={language.menuLabel}
+            >
+              {language.shortLabel}
+            </button>
+            {menuOpen && (
+              <div className="menu" role="menu">
+                {LANGUAGE_ORDER.map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={code === language.code}
+                    className={`menu__item${code === language.code ? ' menu__item--active' : ''}`}
+                    onClick={() => {
+                      onLanguageChange?.(code)
+                      setMenuOpen(false)
+                    }}
+                  >
+                    {LANGUAGES[code].menuLabel}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <input
             className="avatar__input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Enter word or spoken sentence"
+            placeholder={
+              language.code === 'ENGLISH'
+                ? 'Type text or sentence'
+                : language.code === 'MANDARIN'
+                ? '输入文字或句子'
+                : language.code === 'TAMIL'
+                ? 'உரை அல்லது வாக்கியத்தை தட்டச்சு செய்க'
+                : 'Taip teks atau ayat'
+            }
             list="avatar-vocabulary"
             enterKeyHint="go"
             autoComplete="off"
