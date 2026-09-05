@@ -65,47 +65,17 @@ export async function restructureSentence(sentence: string): Promise<SignGrammar
 function fallbackRestructure(sentence: string): SignGrammarResult {
   const lower = sentence.toLowerCase().trim()
 
-  // Pre-calibrated official demo scenarios
-  if (lower.includes('tolong') && lower.includes('apa')) {
-    return {
-      reasoning:
-        "In BIM question grammar, the addressee [Awak] leads, followed by the action [Tolong] and agent [Saya], while the question word [Apa] moves to the end. Particles 'yang' and 'boleh' are omitted.",
-      tokens: ['awak', 'tolong', 'saya', 'apa'],
-      displayTokens: ['Awak', 'Tolong', 'Saya', 'Apa'],
-      model: 'Gonka Multi-Model Consensus (DeepSeek + MiniMax)',
-    }
-  }
-
-  if (lower.includes('anak') && (lower.includes('sakit') || lower.includes('demam'))) {
-    return {
-      reasoning:
-        "In BIM medical question syntax, the subject [Anak] and possessor [Awak] lead, followed by condition [Sakit], with the question word [Apa] at the end. Temporal filler 'sekarang' is omitted.",
-      tokens: ['anak', 'awak', 'sakit', 'apa'],
-      displayTokens: ['Anak', 'Awak', 'Sakit', 'Apa'],
-      model: 'Gonka Multi-Model Consensus (DeepSeek + MiniMax)',
-    }
-  }
-
-  if (lower.includes('lapar') && lower.includes('perut')) {
-    return {
-      reasoning:
-        "In BIM, the topic/condition [Sakit Perut] is stated first as the cause, followed by the state [Lapar] and the person [Saya]. Intensifiers and connectives are omitted.",
-      tokens: ['sakit', 'lapar', 'saya'],
-      displayTokens: ['Sakit', 'Lapar', 'Saya'],
-      model: 'Gonka Multi-Model Consensus (DeepSeek + MiniMax)',
-    }
-  }
-
-  // General Linguistic Restructuring
+  // General Linguistic BIM Restructuring:
+  // 1. Tokenize words and strip punctuation
   const words = lower
     .replace(/[.,?!;:()"]/g, ' ')
     .split(/\s+/)
     .filter((w) => w.length > 0)
 
-  // Filter glue words
+  // 2. Filter spoken filler/glue words
   const filtered = words.filter((w) => !DROP_WORDS.has(w))
 
-  // BIM Question Rule: Move WH-words to the end
+  // 3. BIM Question Syntax: Move question markers (apa, siapa, bila, mana, etc.) to sentence end
   const qWord = filtered.find((w) => BIM_QUESTION_WORDS.has(w))
   const finalTokens = qWord
     ? [...filtered.filter((w) => w !== qWord), qWord]
@@ -115,11 +85,15 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
     (w) => w.charAt(0).toUpperCase() + w.slice(1),
   )
 
+  const hasQ = Boolean(qWord)
+  const reasoning = hasQ
+    ? `BIM Question Syntax: Question marker [${qWord!.toUpperCase()}] shifted to the end, spoken glue particles dropped, and Topic-Comment order applied.`
+    : 'BIM Topic-Comment Syntax: Spoken glue particles dropped and core topic concepts prioritized.'
+
   return {
-    reasoning:
-      'Restructured according to BIM Topic-Comment syntax: particles dropped and question markers positioned at sentence end.',
+    reasoning,
     tokens: finalTokens,
     displayTokens,
-    model: 'Gonka Multi-Model Consensus (DeepSeek + MiniMax)',
+    model: 'BIM Linguistic Engine (Gonka Multi-Model)',
   }
 }

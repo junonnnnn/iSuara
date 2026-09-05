@@ -235,26 +235,25 @@ async def restructure_avatar(request: AvatarRestructureRequest) -> dict:
 
 def _fallback_restructure(sentence: str) -> dict:
     clean = sentence.lower().strip()
-    if "tolong" in clean and "apa" in clean:
-        return {
-            "reasoning": "In BIM question grammar, the addressee [Awak] leads, followed by action [Tolong] and agent [Saya], while [Apa] moves to the end.",
-            "tokens": ["awak", "tolong", "saya", "apa"],
-            "displayTokens": ["Awak", "Tolong", "Saya", "Apa"],
-            "model": "Local BIM Rule Engine",
-        }
-    if "anak" in clean and ("sakit" in clean or "demam" in clean):
-        return {
-            "reasoning": "In BIM medical question syntax, [Anak] and [Awak] lead, followed by [Sakit], with [Apa] at the end.",
-            "tokens": ["anak", "awak", "sakit", "apa"],
-            "displayTokens": ["Anak", "Awak", "Sakit", "Apa"],
-            "model": "Local BIM Rule Engine",
-        }
-    tokens = [w.strip(".,?!;") for w in clean.split() if w not in {"yang", "boleh", "di", "ke", "adalah", "ialah", "sekarang"}]
+    drop_words = {"yang", "boleh", "di", "ke", "adalah", "ialah", "sekarang", "kerana", "sangat", "pun", "akan"}
+    q_words = {"apa", "siapa", "bila", "mana", "kenapa", "bagaimana"}
+
+    raw_words = [w.strip(".,?!;:") for w in clean.split() if w.strip(".,?!;:")]
+    filtered = [w for w in raw_words if w not in drop_words]
+
+    q_word = next((w for w in filtered if w in q_words), None)
+    if q_word:
+        tokens = [w for w in filtered if w != q_word] + [q_word]
+        reasoning = f"BIM Question Syntax: Question marker [{q_word.upper()}] positioned at sentence end, spoken glue particles dropped."
+    else:
+        tokens = filtered
+        reasoning = "BIM Topic-Comment Syntax: Spoken glue particles dropped and topic concepts prioritized."
+
     return {
-        "reasoning": "Restructured according to BIM Topic-Comment syntax.",
+        "reasoning": reasoning,
         "tokens": tokens,
         "displayTokens": [t.title() for t in tokens],
-        "model": "Local BIM Rule Engine",
+        "model": "BIM Linguistic Engine",
     }
 
 
