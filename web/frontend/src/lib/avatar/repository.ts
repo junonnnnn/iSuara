@@ -63,45 +63,134 @@ export const CATALOG: VocabularyItem[] = [
   { key: 'a', title: 'Huruf A', translation: 'Letter A', category: 'Alphabet', assetFileName: 'a.json' },
   { key: 'b', title: 'Huruf B', translation: 'Letter B', category: 'Alphabet', assetFileName: 'b.json' },
   { key: 'c', title: 'Huruf C', translation: 'Letter C', category: 'Alphabet', assetFileName: 'c.json' },
+
+  // ── Curated Core Vocabulary for Police & Doctor Interactions (from SignAvatar-Muba) ──
+  // Emergency & Police
+  { key: 'polis', title: 'Polis', translation: 'Police', category: 'Emergency', assetFileName: 'polis.json' },
+  { key: 'curi', title: 'Curi', translation: 'Steal / Theft', category: 'Emergency', assetFileName: 'curi.json' },
+  { key: 'hilang', title: 'Hilang', translation: 'Lost / Missing', category: 'Emergency', assetFileName: 'hilang.json' },
+  { key: 'tangkap', title: 'Tangkap', translation: 'Catch / Arrest', category: 'Emergency', assetFileName: 'tangkap.json' },
+  { key: 'jahat', title: 'Jahat', translation: 'Bad / Evil', category: 'Emergency', assetFileName: 'jahat.json' },
+  { key: 'bahaya', title: 'Bahaya', translation: 'Danger', category: 'Emergency', assetFileName: 'bahaya.json' },
+  { key: 'selamat', title: 'Selamat', translation: 'Safe', category: 'Emergency', assetFileName: 'selamat.json' },
+  { key: 'duit', title: 'Duit', translation: 'Money', category: 'Emergency', assetFileName: 'duit.json' },
+  { key: 'kereta', title: 'Kereta', translation: 'Car', category: 'Emergency', assetFileName: 'kereta.json' },
+  { key: 'berita', title: 'Berita', translation: 'News / Report', category: 'Emergency', assetFileName: 'berita.json' },
+  { key: 'kunci', title: 'Kunci', translation: 'Key', category: 'Emergency', assetFileName: 'kunci.json' },
+  { key: 'tengok', title: 'Tengok', translation: 'Look / Watch', category: 'Emergency', assetFileName: 'tengok.json' },
+  { key: 'lihat', title: 'Lihat', translation: 'See', category: 'Emergency', assetFileName: 'lihat.json' },
+  { key: 'alamat', title: 'Alamat', translation: 'Address', category: 'Emergency', assetFileName: 'alamat.json' },
+  { key: 'telefon', title: 'Telefon', translation: 'Telephone', category: 'Emergency', assetFileName: 'telefon.json' },
+  { key: 'jangan', title: 'Jangan', translation: "Don't", category: 'Emergency', assetFileName: 'jangan.json' },
+  { key: 'takut', title: 'Takut', translation: 'Scared / Fear', category: 'Emergency', assetFileName: 'takut.json' },
+  { key: 'berlari', title: 'Berlari', translation: 'Run', category: 'Emergency', assetFileName: 'berlari.json' },
+
+  // Healthcare & Doctor
+  { key: 'doktor', title: 'Doktor', translation: 'Doctor', category: 'Healthcare', assetFileName: 'doktor.json' },
+  { key: 'hospital', title: 'Hospital', translation: 'Hospital', category: 'Healthcare', assetFileName: 'hospital.json' },
+  { key: 'klinik', title: 'Klinik', translation: 'Clinic', category: 'Healthcare', assetFileName: 'klinik.json' },
+  { key: 'anak', title: 'Anak', translation: 'Child', category: 'Family', assetFileName: 'anak.json' },
+  { key: 'sakit', title: 'Sakit', translation: 'Sick / Pain', category: 'Healthcare', assetFileName: 'sakit.json' },
+  { key: 'sakit_perut', title: 'Sakit Perut', translation: 'Stomach Ache', category: 'Healthcare', assetFileName: 'sakit_perut.json' },
+  { key: 'sakit_kepala', title: 'Sakit Kepala', translation: 'Headache', category: 'Healthcare', assetFileName: 'sakit_kepala.json' },
+  { key: 'demam', title: 'Demam', translation: 'Fever', category: 'Healthcare', assetFileName: 'demam.json' },
+  { key: 'batuk', title: 'Batuk', translation: 'Cough', category: 'Healthcare', assetFileName: 'batuk.json' },
+  { key: 'sihat', title: 'Sihat', translation: 'Healthy', category: 'Healthcare', assetFileName: 'sihat.json' },
+  { key: 'ubat', title: 'Ubat', translation: 'Medicine', category: 'Healthcare', assetFileName: 'ubat.json' },
+  { key: 'darah', title: 'Darah', translation: 'Blood', category: 'Healthcare', assetFileName: 'darah.json' },
+  { key: 'suhu', title: 'Suhu', translation: 'Temperature', category: 'Healthcare', assetFileName: 'suhu.json' },
+  { key: 'panas', title: 'Panas', translation: 'Hot', category: 'Healthcare', assetFileName: 'panas.json' },
+  { key: 'sejuk', title: 'Sejuk', translation: 'Cold', category: 'Healthcare', assetFileName: 'sejuk.json' },
+  { key: 'rehat', title: 'Rehat', translation: 'Rest', category: 'Healthcare', assetFileName: 'rehat.json' },
+  { key: 'tidur', title: 'Tidur', translation: 'Sleep', category: 'Healthcare', assetFileName: 'tidur.json' },
+  { key: 'badan', title: 'Badan', translation: 'Body', category: 'Healthcare', assetFileName: 'badan.json' },
+  { key: 'dada', title: 'Dada', translation: 'Chest', category: 'Healthcare', assetFileName: 'dada.json' },
+  { key: 'kaki', title: 'Kaki', translation: 'Leg / Foot', category: 'Healthcare', assetFileName: 'kaki.json' },
+  { key: 'tangan', title: 'Tangan', translation: 'Hand', category: 'Healthcare', assetFileName: 'tangan.json' },
+  { key: 'mata', title: 'Mata', translation: 'Eye', category: 'Healthcare', assetFileName: 'mata.json' },
+  { key: 'telinga', title: 'Telinga', translation: 'Ear', category: 'Healthcare', assetFileName: 'telinga.json' },
+  { key: 'mulut', title: 'Mulut', translation: 'Mouth', category: 'Healthcare', assetFileName: 'mulut.json' },
+  { key: 'bayi', title: 'Bayi', translation: 'Baby', category: 'Family', assetFileName: 'bayi.json' },
+
+  // Questions, Time & Core Conversation
+  { key: 'apa', title: 'Apa', translation: 'What', category: 'Questions', assetFileName: 'apa.json' },
+  { key: 'bila', title: 'Bila', translation: 'When', category: 'Questions', assetFileName: 'bila.json' },
+  { key: 'mana', title: 'Mana', translation: 'Where', category: 'Questions', assetFileName: 'mana.json' },
+  { key: 'siapa', title: 'Siapa', translation: 'Who', category: 'Questions', assetFileName: 'siapa.json' },
+  { key: 'kenapa', title: 'Kenapa', translation: 'Why', category: 'Questions', assetFileName: 'kenapa.json' },
+  { key: 'bagaimana', title: 'Bagaimana', translation: 'How', category: 'Questions', assetFileName: 'bagaimana.json' },
+  { key: 'pagi', title: 'Pagi', translation: 'Morning', category: 'Time', assetFileName: 'pagi.json' },
+  { key: 'petang', title: 'Petang', translation: 'Afternoon', category: 'Time', assetFileName: 'petang.json' },
+  { key: 'malam', title: 'Malam', translation: 'Night', category: 'Time', assetFileName: 'malam.json' },
+  { key: 'hari_ini', title: 'Hari Ini', translation: 'Today', category: 'Time', assetFileName: 'hari_ini.json' },
+  { key: 'esok', title: 'Esok', translation: 'Tomorrow', category: 'Time', assetFileName: 'esok.json' },
+  { key: 'sekarang', title: 'Sekarang', translation: 'Now', category: 'Time', assetFileName: 'sekarang.json' },
+  { key: 'encik', title: 'Encik', translation: 'Sir / Mister', category: 'Greetings', assetFileName: 'encik.json' },
+  { key: 'boleh', title: 'Boleh', translation: 'Can / Able', category: 'Daily Conversation', assetFileName: 'boleh.json' },
+  { key: 'lapar', title: 'Lapar', translation: 'Hungry', category: 'Daily Conversation', assetFileName: 'lapar.json' },
+  { key: 'dahaga', title: 'Dahaga', translation: 'Thirsty', category: 'Daily Conversation', assetFileName: 'dahaga.json' },
+  { key: 'tahu', title: 'Tahu', translation: 'Know', category: 'Daily Conversation', assetFileName: 'tahu.json' },
+  { key: 'tidak', title: 'Tidak / Tak', translation: 'No / Not', category: 'Daily Conversation', assetFileName: 'tidak.json' },
+  { key: 'ada', title: 'Ada', translation: 'Have / Exist', category: 'Daily Conversation', assetFileName: 'ada.json' },
+  { key: 'dan', title: 'Dan', translation: 'And', category: 'Daily Conversation', assetFileName: 'dan.json' },
+  { key: 'dia', title: 'Dia', translation: 'He / She', category: 'Daily Conversation', assetFileName: 'dia.json' },
+  { key: 'kami', title: 'Kami', translation: 'We / Us', category: 'Daily Conversation', assetFileName: 'kami.json' },
+  { key: 'mereka', title: 'Mereka', translation: 'They / Them', category: 'Daily Conversation', assetFileName: 'mereka.json' },
+  { key: 'rumah', title: 'Rumah', translation: 'Home / House', category: 'Places', assetFileName: 'rumah.json' },
+  { key: 'benda', title: 'Benda', translation: 'Things / Items', category: 'Daily Conversation', assetFileName: 'benda.json' },
 ]
 
 /**
  * Semantic and synonym aliases mapping common BIM tokens to available 3D motion assets.
  */
 export const ALIASES: Record<string, string> = {
-  apa: 'apa_khabar',
-  apa_apa: 'apa_khabar',
-  bagaimana: 'apa_khabar',
-  sihat: 'apa_khabar',
-  sakit: 'suhu',
-  demam: 'suhu',
-  batuk: 'suhu',
-  panas: 'suhu',
-  anak: 'abang',
-  lelaki: 'abang',
-  budak: 'abang',
-  saudara: 'abang',
-  tolong: 'tolong',
+  tak: 'tidak',
+  tak_tahu: 'tahu',
+  apa_apa: 'apa',
+  dr: 'doktor',
+  panas: 'demam',
+  budak: 'anak',
+  saudara: 'keluarga',
   bantu: 'tolong',
   bantuan: 'tolong',
-  hospital: 'hospital',
-  klinik: 'hospital',
-  doktor: 'doktor',
-  dr: 'doktor',
-  ubat: 'doktor',
-  polis: 'hospital',
-  pegawai: 'doktor',
+  lari: 'berlari',
 }
 
-/** Frames inserted between two words so the hands travel rather than jump. */
-const BRIDGE_FRAMES = 16
-const SYNTHESIS_FPS = 50
+/** Frames inserted between two words so the hands travel rather than jump (8 frames = 0.14s fast, natural transition). */
+const BRIDGE_FRAMES = 8
+const SYNTHESIS_FPS = 55
 
 const cache = new Map<string, BimMotion>()
 
 function assetUrl(fileName: string): string {
   return `${import.meta.env.BASE_URL}motions/${fileName}`
 }
+
+/** Preload essential demo clips into memory for instant playback with 0ms latency. */
+export async function preloadCommonMotions(): Promise<void> {
+  const common = [
+    'awak',
+    'tolong',
+    'saya',
+    'apa',
+    'anak',
+    'sakit',
+    'demam',
+    'sihat',
+    'polis',
+    'rumah',
+    'curi',
+    'hilang',
+    'benda',
+    'tahu',
+    'tidak',
+    'doktor',
+  ]
+  await Promise.allSettled(common.map((k) => loadMotion(k)))
+}
+
+// Immediately trigger preloading
+void preloadCommonMotions()
 
 /** Loads a clip by vocabulary key, resolving aliases if necessary. */
 export async function loadMotion(key: string): Promise<BimMotion | null> {

@@ -64,44 +64,121 @@ class MotionRepository(private val context: Context) {
             VocabularyItem("5", "5 (Lima)", "Five", "Numbers", assetFileName = "5.json"),
             VocabularyItem("a", "Huruf A", "Letter A", "Alphabet", assetFileName = "a.json"),
             VocabularyItem("b", "Huruf B", "Letter B", "Alphabet", assetFileName = "b.json"),
-            VocabularyItem("c", "Huruf C", "Letter C", "Alphabet", assetFileName = "c.json")
+            VocabularyItem("c", "Huruf C", "Letter C", "Alphabet", assetFileName = "c.json"),
+
+            // ── Curated Core Vocabulary for Police & Doctor Interactions (from SignAvatar-Muba) ──
+            // Emergency & Police
+            VocabularyItem("polis", "Polis", "Police", "Emergency", assetFileName = "polis.json"),
+            VocabularyItem("curi", "Curi", "Steal / Theft", "Emergency", assetFileName = "curi.json"),
+            VocabularyItem("hilang", "Hilang", "Lost / Missing", "Emergency", assetFileName = "hilang.json"),
+            VocabularyItem("tangkap", "Tangkap", "Catch / Arrest", "Emergency", assetFileName = "tangkap.json"),
+            VocabularyItem("jahat", "Jahat", "Bad / Evil", "Emergency", assetFileName = "jahat.json"),
+            VocabularyItem("bahaya", "Bahaya", "Danger", "Emergency", assetFileName = "bahaya.json"),
+            VocabularyItem("selamat", "Selamat", "Safe", "Emergency", assetFileName = "selamat.json"),
+            VocabularyItem("duit", "Duit", "Money", "Emergency", assetFileName = "duit.json"),
+            VocabularyItem("kereta", "Kereta", "Car", "Emergency", assetFileName = "kereta.json"),
+            VocabularyItem("berita", "Berita", "News / Report", "Emergency", assetFileName = "berita.json"),
+            VocabularyItem("kunci", "Kunci", "Key", "Emergency", assetFileName = "kunci.json"),
+            VocabularyItem("tengok", "Tengok", "Look / Watch", "Emergency", assetFileName = "tengok.json"),
+            VocabularyItem("lihat", "Lihat", "See", "Emergency", assetFileName = "lihat.json"),
+            VocabularyItem("alamat", "Alamat", "Address", "Emergency", assetFileName = "alamat.json"),
+            VocabularyItem("telefon", "Telefon", "Telephone", "Emergency", assetFileName = "telefon.json"),
+            VocabularyItem("jangan", "Jangan", "Don't", "Emergency", assetFileName = "jangan.json"),
+            VocabularyItem("takut", "Takut", "Scared / Fear", "Emergency", assetFileName = "takut.json"),
+            VocabularyItem("berlari", "Berlari", "Run", "Emergency", assetFileName = "berlari.json"),
+
+            // Healthcare & Doctor
+            VocabularyItem("doktor", "Doktor", "Doctor", "Healthcare", assetFileName = "doktor.json"),
+            VocabularyItem("hospital", "Hospital", "Hospital", "Healthcare", assetFileName = "hospital.json"),
+            VocabularyItem("klinik", "Klinik", "Clinic", "Healthcare", assetFileName = "klinik.json"),
+            VocabularyItem("anak", "Anak", "Child", "Family", assetFileName = "anak.json"),
+            VocabularyItem("sakit", "Sakit", "Sick / Pain", "Healthcare", assetFileName = "sakit.json"),
+            VocabularyItem("sakit_perut", "Sakit Perut", "Stomach Ache", "Healthcare", assetFileName = "sakit_perut.json"),
+            VocabularyItem("sakit_kepala", "Sakit Kepala", "Headache", "Healthcare", assetFileName = "sakit_kepala.json"),
+            VocabularyItem("demam", "Demam", "Fever", "Healthcare", assetFileName = "demam.json"),
+            VocabularyItem("batuk", "Batuk", "Cough", "Healthcare", assetFileName = "batuk.json"),
+            VocabularyItem("sihat", "Sihat", "Healthy", "Healthcare", assetFileName = "sihat.json"),
+            VocabularyItem("ubat", "Ubat", "Medicine", "Healthcare", assetFileName = "ubat.json"),
+            VocabularyItem("darah", "Darah", "Blood", "Healthcare", assetFileName = "darah.json"),
+            VocabularyItem("suhu", "Suhu", "Temperature", "Healthcare", assetFileName = "suhu.json"),
+            VocabularyItem("panas", "Panas", "Hot", "Healthcare", assetFileName = "panas.json"),
+            VocabularyItem("sejuk", "Sejuk", "Cold", "Healthcare", assetFileName = "sejuk.json"),
+            VocabularyItem("rehat", "Rehat", "Rest", "Healthcare", assetFileName = "rehat.json"),
+            VocabularyItem("tidur", "Tidur", "Sleep", "Healthcare", assetFileName = "tidur.json"),
+            VocabularyItem("badan", "Badan", "Body", "Healthcare", assetFileName = "badan.json"),
+            VocabularyItem("dada", "Dada", "Chest", "Healthcare", assetFileName = "dada.json"),
+            VocabularyItem("kaki", "Kaki", "Leg / Foot", "Healthcare", assetFileName = "kaki.json"),
+            VocabularyItem("tangan", "Tangan", "Hand", "Healthcare", assetFileName = "tangan.json"),
+            VocabularyItem("mata", "Mata", "Eye", "Healthcare", assetFileName = "mata.json"),
+            VocabularyItem("telinga", "Telinga", "Ear", "Healthcare", assetFileName = "telinga.json"),
+            VocabularyItem("mulut", "Mulut", "Mouth", "Healthcare", assetFileName = "mulut.json"),
+            VocabularyItem("bayi", "Bayi", "Baby", "Family", assetFileName = "bayi.json"),
+
+            // Questions, Time & Core Conversation
+            VocabularyItem("apa", "Apa", "What", "Questions", assetFileName = "apa.json"),
+            VocabularyItem("bila", "Bila", "When", "Questions", assetFileName = "bila.json"),
+            VocabularyItem("mana", "Mana", "Where", "Questions", assetFileName = "mana.json"),
+            VocabularyItem("siapa", "Siapa", "Who", "Questions", assetFileName = "siapa.json"),
+            VocabularyItem("kenapa", "Kenapa", "Why", "Questions", assetFileName = "kenapa.json"),
+            VocabularyItem("bagaimana", "Bagaimana", "How", "Questions", assetFileName = "bagaimana.json"),
+            VocabularyItem("pagi", "Pagi", "Morning", "Time", assetFileName = "pagi.json"),
+            VocabularyItem("petang", "Petang", "Afternoon", "Time", assetFileName = "petang.json"),
+            VocabularyItem("malam", "Malam", "Night", "Time", assetFileName = "malam.json"),
+            VocabularyItem("hari_ini", "Hari Ini", "Today", "Time", assetFileName = "hari_ini.json"),
+            VocabularyItem("esok", "Esok", "Tomorrow", "Time", assetFileName = "esok.json"),
+            VocabularyItem("sekarang", "Sekarang", "Now", "Time", assetFileName = "sekarang.json"),
+            VocabularyItem("encik", "Encik", "Sir / Mister", "Greetings", assetFileName = "encik.json"),
+            VocabularyItem("boleh", "Boleh", "Can / Able", "Daily Conversation", assetFileName = "boleh.json"),
+            VocabularyItem("lapar", "Lapar", "Hungry", "Daily Conversation", assetFileName = "lapar.json"),
+            VocabularyItem("dahaga", "Dahaga", "Thirsty", "Daily Conversation", assetFileName = "dahaga.json"),
+            VocabularyItem("tahu", "Tahu", "Know", "Daily Conversation", assetFileName = "tahu.json"),
+            VocabularyItem("tidak", "Tidak / Tak", "No / Not", "Daily Conversation", assetFileName = "tidak.json"),
+            VocabularyItem("ada", "Ada", "Have / Exist", "Daily Conversation", assetFileName = "ada.json"),
+            VocabularyItem("dan", "Dan", "And", "Daily Conversation", assetFileName = "dan.json"),
+            VocabularyItem("dia", "Dia", "He / She", "Daily Conversation", assetFileName = "dia.json"),
+            VocabularyItem("kami", "Kami", "We / Us", "Daily Conversation", assetFileName = "kami.json"),
+            VocabularyItem("mereka", "Mereka", "They / Them", "Daily Conversation", assetFileName = "mereka.json"),
+            VocabularyItem("rumah", "Rumah", "Home / House", "Places", assetFileName = "rumah.json"),
+            VocabularyItem("benda", "Benda", "Things / Items", "Daily Conversation", assetFileName = "benda.json")
         )
+
         // Vocabulary aliases for continuous grammatical sentences
         val ALIASES: Map<String, String> = mapOf(
-            "apa" to "apa_khabar",
-            "sakit" to "suhu",
-            "demam" to "suhu",
-            "encik" to "awak",
-            "anak" to "abang",
-            "perut" to "makan",
-            "sakit_perut" to "makan"
+            "tak" to "tidak",
+            "tak_tahu" to "tahu",
+            "apa_apa" to "apa",
+            "dr" to "doktor",
+            "panas" to "demam",
+            "budak" to "anak",
+            "saudara" to "keluarga",
+            "bantu" to "tolong",
+            "bantuan" to "tolong",
+            "lari" to "berlari"
         )
     }
 
     private val cache = HashMap<String, BimMotion>()
 
     /**
-     * Loads a motion track by vocabulary key.
+     * Loads a motion track by vocabulary key, resolving aliases if necessary.
      */
     fun loadMotion(key: String): BimMotion? {
-        val cleanKey = key.trim().lowercase().replace(" ", "_")
-        val cached = cache[cleanKey]
+        val cleanKey = key.trim().lowercase().replace(Regex("[.,?!;]"), "")
+        val resolvedKey = ALIASES[cleanKey] ?: cleanKey
+        val cached = cache[resolvedKey]
         if (cached != null) return cached
 
-        val resolvedKey = ALIASES[cleanKey] ?: cleanKey
-        val item = CATALOG.find { it.key.equals(cleanKey, ignoreCase = true) }
-            ?: CATALOG.find { it.key.equals(resolvedKey, ignoreCase = true) }
-
+        val item = CATALOG.find { it.key.equals(resolvedKey, ignoreCase = true) }
         val fileName = item?.assetFileName ?: if (resolvedKey.endsWith(".json")) resolvedKey else "$resolvedKey.json"
 
         return try {
             val assetPath = "motions/$fileName"
             val stream: InputStream = context.assets.open(assetPath)
             val motion = MotionParser.parseStream(stream)
-            cache[cleanKey] = motion
+            cache[resolvedKey] = motion
             motion
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load motion for key '$cleanKey' ($fileName)", e)
+            Log.e(TAG, "Failed to load motion for key '$key' -> '$resolvedKey' ($fileName)", e)
             null
         }
     }
@@ -120,7 +197,7 @@ class MotionRepository(private val context: Context) {
     }
 
     /**
-     * Synthesizes a continuous sentence by joining multiple vocabulary words with a smooth 16-frame co-articulation bridge.
+     * Synthesizes a continuous sentence by joining multiple vocabulary words with a fast 8-frame co-articulation bridge.
      */
     fun synthesizeSentence(words: List<String>): BimMotion? {
         val motions = words.mapNotNull { loadMotion(it) }
@@ -128,7 +205,7 @@ class MotionRepository(private val context: Context) {
         if (motions.size == 1) return motions[0]
 
         val combinedFrames = ArrayList<BimFrame>()
-        val fps = 50f
+        val fps = 55f
         var currentFrameIndex = 0
 
         for (i in motions.indices) {
@@ -144,14 +221,14 @@ class MotionRepository(private val context: Context) {
                 currentFrameIndex++
             }
 
-            // If there is a next word, insert a 16-frame smooth co-articulation bridge
+            // If there is a next word, insert an 8-frame smooth co-articulation bridge
             if (i < motions.size - 1) {
                 val lastFrame = m.frames.lastOrNull()
                 val nextMotion = motions[i + 1]
                 val firstFrameNext = nextMotion.frames.firstOrNull()
 
                 if (lastFrame != null && firstFrameNext != null) {
-                    val bridgeCount = 16
+                    val bridgeCount = 8
                     for (b in 1..bridgeCount) {
                         val alpha = b / (bridgeCount + 1).toFloat()
                         val bridgedFrame = bridgeFrames(lastFrame, firstFrameNext, alpha, currentFrameIndex, fps)
