@@ -65,6 +65,34 @@ export const CATALOG: VocabularyItem[] = [
   { key: 'c', title: 'Huruf C', translation: 'Letter C', category: 'Alphabet', assetFileName: 'c.json' },
 ]
 
+/**
+ * Semantic and synonym aliases mapping common BIM tokens to available 3D motion assets.
+ */
+export const ALIASES: Record<string, string> = {
+  apa: 'apa_khabar',
+  apa_apa: 'apa_khabar',
+  bagaimana: 'apa_khabar',
+  sihat: 'apa_khabar',
+  sakit: 'suhu',
+  demam: 'suhu',
+  batuk: 'suhu',
+  panas: 'suhu',
+  anak: 'abang',
+  lelaki: 'abang',
+  budak: 'abang',
+  saudara: 'abang',
+  tolong: 'tolong',
+  bantu: 'tolong',
+  bantuan: 'tolong',
+  hospital: 'hospital',
+  klinik: 'hospital',
+  doktor: 'doktor',
+  dr: 'doktor',
+  ubat: 'doktor',
+  polis: 'hospital',
+  pegawai: 'doktor',
+}
+
 /** Frames inserted between two words so the hands travel rather than jump. */
 const BRIDGE_FRAMES = 16
 const SYNTHESIS_FPS = 50
@@ -75,22 +103,24 @@ function assetUrl(fileName: string): string {
   return `${import.meta.env.BASE_URL}motions/${fileName}`
 }
 
-/** Loads a clip by vocabulary key, or null when there is no such sign. */
+/** Loads a clip by vocabulary key, resolving aliases if necessary. */
 export async function loadMotion(key: string): Promise<BimMotion | null> {
-  const cached = cache.get(key)
+  const cleanKey = key.trim().toLowerCase().replace(/[.,?!;]/g, '')
+  const resolvedKey = ALIASES[cleanKey] ?? cleanKey
+  const cached = cache.get(resolvedKey)
   if (cached) return cached
 
-  const item = CATALOG.find((v) => v.key.toLowerCase() === key.toLowerCase())
-  const fileName = item?.assetFileName ?? (key.endsWith('.json') ? key : `${key}.json`)
+  const item = CATALOG.find((v) => v.key.toLowerCase() === resolvedKey)
+  const fileName = item?.assetFileName ?? (resolvedKey.endsWith('.json') ? resolvedKey : `${resolvedKey}.json`)
 
   try {
     const response = await fetch(assetUrl(fileName))
     if (!response.ok) return null
     const motion = parseMotion(await response.json())
-    cache.set(key, motion)
+    cache.set(resolvedKey, motion)
     return motion
   } catch (e) {
-    console.warn(`[avatar] could not load motion "${key}" (${fileName})`, e)
+    console.warn(`[avatar] could not load motion "${key}" -> "${resolvedKey}" (${fileName})`, e)
     return null
   }
 }

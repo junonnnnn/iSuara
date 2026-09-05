@@ -1,10 +1,8 @@
 /**
  * The "Text → Sign" tab — ports avatar/ui/AvatarPlayerScreen.kt.
  *
- * A full-bleed 3D viewport with a single input bar over it. Type a word or a
- * sentence and the avatar signs it: an exact catalog hit plays that clip, and
- * anything multi-word is synthesised by joining clips with co-articulation
- * bridges. Signs play once — looping would read as a stutter rather than a sign.
+ * A full-bleed 3D viewport with interactive BIM sign language grammar restructuring.
+ * Spoken Malay input is restructured into Topic-Comment syntax and signed continuously.
  *
  * Drag to orbit, wheel or pinch to zoom, matching TouchOrbitController.kt.
  */
@@ -13,7 +11,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { AvatarRenderer } from '../lib/avatar/renderer'
 import { MotionPlayer } from '../lib/avatar/motionPlayer'
-import { CATALOG, loadMotion, resolveQuery } from '../lib/avatar/repository'
+import { CATALOG, loadMotion, resolveQuery, synthesizeSentence } from '../lib/avatar/repository'
+import { restructureSentence } from '../lib/avatar/signGrammar'
 
 /** Loaded paused on open, as the Android screen does. */
 const INITIAL_SIGN = 'terima_kasih'
@@ -27,6 +26,12 @@ export function AvatarScreen() {
   const [input, setInput] = useState('')
   const [activeWord, setActiveWord] = useState('')
   const [status, setStatus] = useState('')
+
+  // Multi-model grammar reasoning state
+  const [isReasoning, setIsReasoning] = useState(false)
+  const [reasoningTrace, setReasoningTrace] = useState<string | null>(null)
+  const [bimTokens, setBimTokens] = useState<string[]>([])
+  const [activeModel, setActiveModel] = useState<string | null>(null)
 
   if (!playerRef.current) playerRef.current = new MotionPlayer()
   const player = playerRef.current
@@ -43,8 +48,6 @@ export function AvatarScreen() {
     const loop = () => {
       rafRef.current = requestAnimationFrame(loop)
       const now = performance.now()
-      // Clamped exactly as the Kotlin does: a backgrounded tab would otherwise
-      // return a multi-second delta and skip the whole clip on resume.
       const delta = Math.min(Math.max((now - last) / 1000, 0.001), 0.1)
       last = now
       renderer.render(player.advanceTime(delta))
@@ -82,14 +85,54 @@ export function AvatarScreen() {
       if (!effective) return
       setStatus('')
 
-      const resolved = await resolveQuery(effective)
-      if (!resolved) {
-        setStatus(`No sign for “${effective}”`)
+      // 1. Direct Catalog Match for single glosses
+      const clean = effective.toLowerCase().replace(/\s+/g, '_')
+      const direct = CATALOG.find(
+        (v) => v.key.toLowerCase() === clean || v.title.toLowerCase() === effective.toLowerCase(),
+      )
+
+      if (direct) {
+        setBimTokens([])
+        setReasoningTrace(null)
+        setActiveModel(null)
+        const motion = await loadMotion(direct.key)
+        if (motion) {
+          player.isLooping = false
+          player.setMotion(motion, true)
+          setActiveWord(motion.word)
+        }
         return
       }
-      player.isLooping = false
-      player.setMotion(resolved.motion, true)
-      setActiveWord(resolved.motion.word)
+
+      // 2. Multi-word Sentence Restructuring via AI BIM Grammar
+      setIsReasoning(true)
+      try {
+        const grammarResult = await restructureSentence(effective)
+        setReasoningTrace(grammarResult.reasoning)
+        setBimTokens(grammarResult.displayTokens)
+        setActiveModel(grammarResult.model)
+
+        const motion = await synthesizeSentence(grammarResult.tokens)
+        if (motion) {
+          player.isLooping = false
+          player.setMotion(motion, true)
+          setActiveWord(motion.word)
+        } else {
+          // Fallback to resolveQuery
+          const resolved = await resolveQuery(effective)
+          if (resolved) {
+            player.isLooping = false
+            player.setMotion(resolved.motion, true)
+            setActiveWord(resolved.motion.word)
+          } else {
+            setStatus(`No sign found for "${effective}"`)
+          }
+        }
+      } catch (err) {
+        console.error('BIM grammar reasoning failed', err)
+      } finally {
+        setIsReasoning(false)
+      }
     },
     [player],
   )
@@ -115,8 +158,6 @@ export function AvatarScreen() {
       const dy = e.clientY - lastY
       lastX = e.clientX
       lastY = e.clientY
-      // Dragging right turns the avatar right; dragging down raises the camera,
-      // which is the direction fixed in the Android "correct vertical orbit" commit.
       rendererRef.current?.orbit(-dx * 0.01, dy * 0.005)
     }
     const up = (e: PointerEvent) => {
@@ -146,50 +187,104 @@ export function AvatarScreen() {
     <div className="avatar">
       <canvas ref={canvasRef} className="avatar__canvas" />
 
-      {/*
-        Just the sign being played. The fixed camera presets that used to sit
-        here are gone — dragging and pinching reach every angle they offered,
-        and a row of five buttons over the viewport was the loudest thing on a
-        screen whose subject is the avatar.
-      */}
       <div className="avatar__hud">
         <span className="avatar__word">{activeWord || '—'}</span>
       </div>
 
       {status && <p className="avatar__status">{status}</p>}
 
-      <form
-        className="avatar__bar"
-        onSubmit={(e) => {
-          e.preventDefault()
-          void play(input)
-        }}
-      >
-        <input
-          className="avatar__input"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Enter word or sentence"
-          list="avatar-vocabulary"
-          enterKeyHint="go"
-          autoComplete="off"
-        />
-        {/* Native suggestions rather than a custom dropdown: the catalog is 33
-            entries and this keeps the bar as minimal as the phone's. */}
-        <datalist id="avatar-vocabulary">
-          {CATALOG.map((item) => (
-            <option key={item.key} value={item.title}>
-              {item.translation}
-            </option>
-          ))}
-        </datalist>
-        <button type="submit" className="avatar__send" title="Play sign">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
-            <path d="M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4z" />
-          </svg>
-          <span className="sr-only">Play sign</span>
-        </button>
-      </form>
+      <div className="avatar__controls-bottom">
+        {/* 1-Click Quick Demo Presets */}
+        <div className="avatar__presets">
+          <button
+            type="button"
+            className="avatar__preset-btn avatar__preset-btn--police"
+            onClick={() => {
+              setInput('Encik, apa yang saya boleh tolong?')
+              void play('Encik, apa yang saya boleh tolong?')
+            }}
+            disabled={isReasoning}
+          >
+            🚨 Polis: Boleh tolong?
+          </button>
+          <button
+            type="button"
+            className="avatar__preset-btn avatar__preset-btn--doctor"
+            onClick={() => {
+              setInput('Anak awak sakit apa sekarang?')
+              void play('Anak awak sakit apa sekarang?')
+            }}
+            disabled={isReasoning}
+          >
+            🩺 Doktor: Anak sakit apa?
+          </button>
+        </div>
+
+        {/* AI BIM Grammar Reasoning & Token Chips */}
+        {(isReasoning || bimTokens.length > 0) && (
+          <div className="avatar__reasoning-card">
+            {isReasoning ? (
+              <div className="avatar__reasoning-loading">
+                <div className="avatar__spinner" />
+                <span>Analyzing BIM Grammar via Gonka Multi-Model…</span>
+              </div>
+            ) : (
+              <>
+                <div className="avatar__reasoning-header">
+                  <span className="avatar__reasoning-title">BIM Sign Grammar Syntax</span>
+                  {activeModel && <span className="avatar__reasoning-model">{activeModel}</span>}
+                </div>
+                <div className="avatar__token-row">
+                  {bimTokens.map((token, i) => (
+                    <span key={i} className="avatar__token-wrapper">
+                      <span className="avatar__token-chip">{token}</span>
+                      {i < bimTokens.length - 1 && <span className="avatar__token-arrow">→</span>}
+                    </span>
+                  ))}
+                </div>
+                {reasoningTrace && <p className="avatar__reasoning-trace">{reasoningTrace}</p>}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Input Bar Form */}
+        <form
+          className="avatar__input-row"
+          onSubmit={(e) => {
+            e.preventDefault()
+            void play(input)
+          }}
+        >
+          <input
+            className="avatar__input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Enter word or spoken sentence"
+            list="avatar-vocabulary"
+            enterKeyHint="go"
+            autoComplete="off"
+          />
+          <datalist id="avatar-vocabulary">
+            {CATALOG.map((item) => (
+              <option key={item.key} value={item.title}>
+                {item.translation}
+              </option>
+            ))}
+          </datalist>
+          <button
+            type="submit"
+            className="avatar__send"
+            title="Play sign"
+            disabled={isReasoning || !input.trim()}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+              <path d="M4 11h12.17l-5.59-5.59L12 4l8 8-8 8-1.41-1.41L16.17 13H4z" />
+            </svg>
+            <span className="sr-only">Play sign</span>
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

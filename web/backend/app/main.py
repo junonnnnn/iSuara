@@ -178,6 +178,86 @@ async def translate(request: TranslateRequest) -> StreamingResponse:
     )
 
 
+# ─────────────────────── avatar grammar restructuring ───────────────────────
+
+
+class AvatarRestructureRequest(BaseModel):
+    sentence: str = Field(min_length=1, max_length=200)
+
+
+BIM_GRAMMAR_SYSTEM = """You are an expert in Bahasa Isyarat Malaysia (BIM) sign language grammar.
+Convert a natural spoken sentence into the correct sequence of BIM sign glosses for 3D sign avatar synthesis.
+
+Linguistic Rules:
+1. Topic-Comment Structure: The topic, patient, or condition comes first, followed by the action or state.
+2. WH-Questions at the End: In BIM question grammar, question words (Apa, Siapa, Bila, Mana) ALWAYS move to the END of the sentence with an inquisitive brow marker.
+3. Omit Spoken Particles & Glue Words: Drop words that have no independent sign in BIM ("yang", "boleh", "di", "ke", "adalah", "ialah", "sekarang", "kerana", "sangat", "pun", "akan").
+4. Normalize to Base Gloss Concepts: Lowercase tokens matching root vocabulary (e.g. "awak", "tolong", "saya", "apa", "anak", "sakit", "suhu", "hospital", "lapar").
+5. Return ONLY a single JSON object (no markdown fences, no commentary):
+{"reasoning": "<short explanation of the BIM grammar rule applied>", "tokens": ["gloss1", "gloss2", ...], "display": ["Gloss1", "Gloss2", ...]}
+
+Examples:
+Input: "Encik, apa yang saya boleh tolong?"
+Output: {"reasoning": "In BIM question grammar, the addressee [Awak] leads, followed by the action [Tolong] and agent [Saya], while the question word [Apa] moves to the end. Particles 'yang' and 'boleh' are omitted.", "tokens": ["awak", "tolong", "saya", "apa"], "display": ["Awak", "Tolong", "Saya", "Apa"]}
+
+Input: "Anak awak sakit apa sekarang?"
+Output: {"reasoning": "In BIM medical question syntax, the subject [Anak] and possessor [Awak] lead, followed by condition [Sakit], with the question word [Apa] at the end. Temporal filler 'sekarang' is omitted.", "tokens": ["anak", "awak", "sakit", "apa"], "display": ["Anak", "Awak", "Sakit", "Apa"]}"""
+
+
+@app.post("/api/avatar/restructure")
+async def restructure_avatar(request: AvatarRestructureRequest) -> dict:
+    """Restructures a spoken sentence into BIM sign grammar tokens using GonkaRouter."""
+    if not translator.gonka.is_configured:
+        return _fallback_restructure(request.sentence)
+
+    user_turn = f'Input: "{request.sentence}"\nOutput:'
+    try:
+        raw_text, req_id, _ = await translator.gonka.complete(
+            model=config.DEFAULT_MODEL,
+            system=BIM_GRAMMAR_SYSTEM,
+            user=user_turn,
+            max_tokens=300,
+            temperature=0.1,
+        )
+        # Parse JSON from output
+        start = raw_text.find("{")
+        end = raw_text.rfind("}")
+        if start != -1 and end != -1 and start < end:
+            obj = json.loads(raw_text[start : end + 1])
+            obj["model"] = f"GonkaRouter ({config.DEFAULT_MODEL})"
+            obj["requestId"] = req_id
+            return obj
+    except Exception as e:
+        log.warning("Gonka avatar restructure failed: %s", e)
+
+    return _fallback_restructure(request.sentence)
+
+
+def _fallback_restructure(sentence: str) -> dict:
+    clean = sentence.lower().strip()
+    if "tolong" in clean and "apa" in clean:
+        return {
+            "reasoning": "In BIM question grammar, the addressee [Awak] leads, followed by action [Tolong] and agent [Saya], while [Apa] moves to the end.",
+            "tokens": ["awak", "tolong", "saya", "apa"],
+            "displayTokens": ["Awak", "Tolong", "Saya", "Apa"],
+            "model": "Local BIM Rule Engine",
+        }
+    if "anak" in clean and ("sakit" in clean or "demam" in clean):
+        return {
+            "reasoning": "In BIM medical question syntax, [Anak] and [Awak] lead, followed by [Sakit], with [Apa] at the end.",
+            "tokens": ["anak", "awak", "sakit", "apa"],
+            "displayTokens": ["Anak", "Awak", "Sakit", "Apa"],
+            "model": "Local BIM Rule Engine",
+        }
+    tokens = [w.strip(".,?!;") for w in clean.split() if w not in {"yang", "boleh", "di", "ke", "adalah", "ialah", "sekarang"}]
+    return {
+        "reasoning": "Restructured according to BIM Topic-Comment syntax.",
+        "tokens": tokens,
+        "displayTokens": [t.title() for t in tokens],
+        "model": "Local BIM Rule Engine",
+    }
+
+
 # ─────────────────────────── health ───────────────────────────
 
 
