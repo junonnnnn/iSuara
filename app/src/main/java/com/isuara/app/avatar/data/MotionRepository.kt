@@ -146,8 +146,8 @@ class MotionRepository(private val context: Context) {
             VocabularyItem("yang", "Yang", "Which / That", "Daily Conversation", assetFileName = "yang.json"),
 
             // Synthesized Dual-Version Continuous Sentences
-            VocabularyItem("sentence_1_bim_encik_saya_boleh_tolong_apa", "BIM: Encik, Saya Boleh Tolong Apa?", "Sir, what can I help you with? (BIM)", "Sentences", assetFileName = "sentence_1_bim_encik_saya_boleh_tolong_apa.json"),
-            VocabularyItem("sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa", "BIM: Apa-Khabar, Hari-Ini Awak Datang Hospital Kenapa?", "Hello, why did you come to the hospital today? (BIM)", "Sentences", assetFileName = "sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json"),
+            VocabularyItem("sentence_1_bim_encik_saya_boleh_tolong_apa", "Encik, Saya Boleh Tolong Apa?", "Sir, what can I help you with?", "Sentences", assetFileName = "sentence_1_bim_encik_saya_boleh_tolong_apa.json"),
+            VocabularyItem("sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa", "Apa-Khabar, Hari-Ini Awak Datang Hospital Kenapa?", "Hello, why did you come to the hospital today?", "Sentences", assetFileName = "sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json"),
             VocabularyItem("sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong", "KTBM: Encik Apa Yang Saya Boleh Tolong", "Sir, what can I help you with? (KTBM)", "Sentences", assetFileName = "sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong.json"),
             VocabularyItem("sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini", "KTBM: Apa Khabar Kenapa Datang Hospital Hari Ini", "Hello, why did you come to the hospital today? (KTBM)", "Sentences", assetFileName = "sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini.json")
         )
@@ -169,6 +169,169 @@ class MotionRepository(private val context: Context) {
             "sakit-perut" to "sakit_perut",
             "sakit-kepala" to "sakit_kepala"
         )
+
+        val ZH_GLOSS_MAP: Map<String, String> = mapOf(
+            "apa_khabar" to "你好",
+            "hello" to "你好",
+            "hai" to "嗨",
+            "encik" to "先生",
+            "saya" to "我",
+            "boleh" to "可以",
+            "tolong" to "帮助",
+            "apa" to "什么",
+            "hari_ini" to "今天",
+            "hari-ini" to "今天",
+            "awak" to "你",
+            "datang" to "来",
+            "hospital" to "医院",
+            "kenapa" to "为什么",
+            "yang" to "的",
+            "doktor" to "医生",
+            "klinik" to "诊所",
+            "polis" to "警察",
+            "terima_kasih" to "谢谢",
+            "makan" to "吃",
+            "minum" to "喝",
+            "tidur" to "睡觉",
+            "sakit" to "生病",
+            "demam" to "发烧",
+            "batuk" to "咳嗽",
+            "ubat" to "药物",
+            "panas" to "热",
+            "sejuk" to "冷",
+            "suhu" to "体温",
+            "rumah" to "家",
+            "sekolah" to "学校",
+            "duit" to "钱",
+            "kereta" to "汽车",
+            "anak" to "孩子",
+            "ibu" to "妈妈",
+            "bapa" to "爸爸",
+            "ayah" to "爸爸",
+            "abang" to "哥哥",
+            "kakak" to "姐姐",
+            "kawan" to "朋友",
+            "nama" to "名字",
+            "curi" to "偷窃",
+            "hilang" to "丢失",
+            "tangkap" to "抓捕",
+            "bahaya" to "危险",
+            "selamat" to "安全",
+            "sakit_perut" to "胃痛",
+            "sakit_kepala" to "头痛",
+            "siapa" to "谁",
+            "mana" to "哪里",
+            "bila" to "何时",
+            "bagaimana" to "如何",
+            "gembira" to "开心",
+            "cinta" to "爱",
+            "belajar" to "学习",
+            "baju" to "衣服",
+            "air" to "水"
+        )
+
+        val TA_GLOSS_MAP: Map<String, String> = mapOf(
+            "apa_khabar" to "வணக்கம்",
+            "hello" to "வணக்கம்",
+            "hai" to "வணக்கம்",
+            "encik" to "ஐயா",
+            "saya" to "நான்",
+            "boleh" to "முடியும்",
+            "tolong" to "உதவு",
+            "apa" to "என்ன",
+            "hari_ini" to "இன்று",
+            "hari-ini" to "இன்று",
+            "awak" to "நீங்கள்",
+            "datang" to "வருதல்",
+            "hospital" to "மருத்துவமனை",
+            "kenapa" to "ஏன்",
+            "yang" to "என்று",
+            "doktor" to "மருத்துவர்",
+            "klinik" to "கிளினிக்",
+            "polis" to "காவல்துறை",
+            "terima_kasih" to "நன்றி",
+            "makan" to "சாப்பிடு",
+            "minum" to "குடி",
+            "tidur" to "தூங்கு",
+            "sakit" to "நோய்",
+            "demam" to "காய்ச்சல்",
+            "batuk" to "இருமல்",
+            "ubat" to "மருந்து",
+            "panas" to "சூடான",
+            "sejuk" to "குளிர்",
+            "suhu" to "வெப்பநிலை",
+            "rumah" to "வீடு",
+            "sekolah" to "பள்ளி",
+            "duit" to "பணம்",
+            "kereta" to "கார்",
+            "anak" to "குழந்தை",
+            "ibu" to "அம்மா",
+            "bapa" to "அப்பா",
+            "ayah" to "அப்பா",
+            "abang" to "அண்ணன்",
+            "kakak" to "அக்கா",
+            "kawan" to "நண்பர்",
+            "nama" to "பெயர்",
+            "curi" to "திருடு",
+            "hilang" to "தொலைந்தது",
+            "tangkap" to "பிடி",
+            "bahaya" to "ஆபத்து",
+            "selamat" to "பாதுகாப்பான",
+            "sakit_perut" to "வயிற்று வலி",
+            "sakit_kepala" to "தலைவலி",
+            "siapa" to "யார்",
+            "mana" to "எங்கே",
+            "bila" to "எப்போது",
+            "bagaimana" to "எப்படி",
+            "gembira" to "சந்தோஷம்",
+            "cinta" to "அன்பு",
+            "belajar" to "படி",
+            "baju" to "ஆடை",
+            "air" to "தண்ணீர்"
+        )
+
+        val REVERSE_GLOSS_MAP: Map<String, String> by lazy {
+            val map = mutableMapOf<String, String>()
+            CATALOG.forEach { item ->
+                map[item.key.lowercase()] = item.key
+                map[item.title.lowercase()] = item.key
+                item.translation.split("/").forEach { tr ->
+                    map[tr.trim().lowercase()] = item.key
+                }
+            }
+            ZH_GLOSS_MAP.forEach { (k, v) -> map[v.trim().lowercase()] = k }
+            TA_GLOSS_MAP.forEach { (k, v) -> map[v.trim().lowercase()] = k }
+            map
+        }
+
+        fun findExactMatch(query: String, language: com.isuara.app.service.Language = com.isuara.app.service.Language.MALAY): VocabularyItem? {
+            val clean = query.trim().lowercase().replace(Regex("[.,?!;]"), "").replace(Regex("[-\\s]+"), "_")
+            val keyFromReverse = REVERSE_GLOSS_MAP[query.trim().lowercase()]
+                ?: REVERSE_GLOSS_MAP[clean]
+                ?: REVERSE_GLOSS_MAP[clean.replace("_", " ")]
+            if (keyFromReverse != null) {
+                val item = CATALOG.find { it.key.equals(keyFromReverse, ignoreCase = true) }
+                if (item != null) return item
+            }
+            return CATALOG.find { item ->
+                item.key.equals(clean, ignoreCase = true) ||
+                item.title.equals(query.trim(), ignoreCase = true) ||
+                item.translation.split("/").any { it.trim().equals(query.trim(), ignoreCase = true) } ||
+                getLocalizedGloss(item.key, language).equals(query.trim(), ignoreCase = true)
+            }
+        }
+
+        fun getLocalizedGloss(key: String, language: com.isuara.app.service.Language): String {
+            val cleanKey = key.trim().lowercase().replace(Regex("[.,?!;]"), "").replace(Regex("[-\\s]+"), "_")
+            val resolvedKey = REVERSE_GLOSS_MAP[cleanKey] ?: cleanKey
+            val item = CATALOG.find { it.key.equals(resolvedKey, ignoreCase = true) }
+            return when (language) {
+                com.isuara.app.service.Language.MANDARIN -> ZH_GLOSS_MAP[resolvedKey] ?: item?.title ?: resolvedKey
+                com.isuara.app.service.Language.TAMIL -> TA_GLOSS_MAP[resolvedKey] ?: item?.title ?: resolvedKey
+                com.isuara.app.service.Language.ENGLISH -> item?.translation?.split("/")?.firstOrNull()?.trim() ?: item?.title ?: resolvedKey.replace("_", " ").replaceFirstChar { it.uppercase() }
+                com.isuara.app.service.Language.MALAY -> item?.title ?: resolvedKey.replace("_", " ").replaceFirstChar { it.uppercase() }
+            }
+        }
     }
 
     private val cache = HashMap<String, BimMotion>()
@@ -178,7 +341,7 @@ class MotionRepository(private val context: Context) {
      */
     fun loadMotion(key: String): BimMotion? {
         val cleanKey = key.trim().lowercase().replace(Regex("[.,?!;]"), "").replace(Regex("[-\\s]+"), "_")
-        val resolvedKey = ALIASES[cleanKey] ?: cleanKey
+        val resolvedKey = ALIASES[cleanKey] ?: REVERSE_GLOSS_MAP[cleanKey] ?: cleanKey
         val cached = cache[resolvedKey]
         if (cached != null) return cached
 

@@ -15,7 +15,7 @@ class GeminiSignGrammarService {
         private const val TAG = "GeminiSignGrammar"
 
         const val PRIMARY_MODEL = "gemini-3.1-flash-lite"
-        const val CONSENSUS_MODEL = "gemini-2.5-flash"
+        const val CONSENSUS_MODEL = "gemini-3.1-flash-lite"
     }
 
     suspend fun restructure(sentence: String): SignGrammarResult = withContext(Dispatchers.IO) {
@@ -33,7 +33,7 @@ class GeminiSignGrammarService {
                 model = "Gemini-3.1-Flash-Lite",
                 tokens = listOf("encik", "saya", "boleh", "tolong", "apa"),
                 displayTokens = listOf("Encik", "Saya", "Boleh", "Tolong", "Apa"),
-                reasoning = "BIM Natural Sign Order: Polite address [Encik], agent [Saya], modal [Boleh], action [Tolong], terminal interrogative [Apa].",
+                reasoning = "Natural Sign Order: Polite address [Encik], agent [Saya], modal [Boleh], action [Tolong], terminal interrogative [Apa].",
                 requestId = "req-gem1-${System.currentTimeMillis().toString().takeLast(6)}",
                 isWinner = true
             )
@@ -41,13 +41,13 @@ class GeminiSignGrammarService {
                 model = "Gemini-2.5-Flash",
                 tokens = listOf("encik", "apa", "yang", "saya", "boleh", "tolong"),
                 displayTokens = listOf("Encik", "Apa", "Yang", "Saya", "Boleh", "Tolong"),
-                reasoning = "KTBM Direct Translation: Word-for-word spoken Malay grammatical structure.",
+                reasoning = "Direct Translation: Word-for-word spoken grammatical structure.",
                 requestId = "req-gem2-${System.currentTimeMillis().toString().takeLast(6)}",
                 isWinner = false
             )
             val verdict = GrammarVerdict(
                 judgeModel = "Gemini-3.1-Flash-Lite (Consensus Judge)",
-                reason = "Consensus established: Canonical BIM Natural Sign sequence [Encik → Saya → Boleh → Tolong → Apa] selected, mapped to sentence_1_bim_encik_saya_boleh_tolong_apa.json.",
+                reason = "Consensus established: Canonical Natural Sign sequence [Encik → Saya → Boleh → Tolong → Apa] selected, mapped to sentence_1_bim_encik_saya_boleh_tolong_apa.json.",
                 choice = 0,
                 requestId = "req-judge-${System.currentTimeMillis().toString().takeLast(6)}"
             )
@@ -70,7 +70,7 @@ class GeminiSignGrammarService {
                 model = "Gemini-3.1-Flash-Lite",
                 tokens = listOf("apa_khabar", "hari_ini", "awak", "datang", "hospital", "kenapa"),
                 displayTokens = listOf("Apa-Khabar", "Hari-Ini", "Awak", "Datang", "Hospital", "Kenapa"),
-                reasoning = "BIM Natural Sign Order: Greeting [Apa-Khabar], temporal setting [Hari-Ini], subject [Awak], location predicate [Datang Hospital], terminal interrogative [Kenapa].",
+                reasoning = "Natural Sign Order: Greeting [Apa-Khabar], temporal setting [Hari-Ini], subject [Awak], location predicate [Datang Hospital], terminal interrogative [Kenapa].",
                 requestId = "req-gem1-${System.currentTimeMillis().toString().takeLast(6)}",
                 isWinner = true
             )
@@ -78,13 +78,13 @@ class GeminiSignGrammarService {
                 model = "Gemini-2.5-Flash",
                 tokens = listOf("apa_khabar", "kenapa", "datang", "hospital", "hari_ini"),
                 displayTokens = listOf("Apa-Khabar", "Kenapa", "Datang", "Hospital", "Hari-Ini"),
-                reasoning = "KTBM Direct Translation: Retains spoken BM order with question word immediately following greeting.",
+                reasoning = "Direct Translation: Retains spoken order with question word immediately following greeting.",
                 requestId = "req-gem2-${System.currentTimeMillis().toString().takeLast(6)}",
                 isWinner = false
             )
             val verdict = GrammarVerdict(
                 judgeModel = "Gemini-3.1-Flash-Lite (Consensus Judge)",
-                reason = "Consensus established: Canonical BIM Natural Sign sequence [Apa-Khabar → Hari-Ini → Awak → Datang → Hospital → Kenapa] selected, mapped to sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json.",
+                reason = "Consensus established: Canonical Natural Sign sequence [Apa-Khabar → Hari-Ini → Awak → Datang → Hospital → Kenapa] selected, mapped to sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json.",
                 choice = 0,
                 requestId = "req-judge-${System.currentTimeMillis().toString().takeLast(6)}"
             )
@@ -147,7 +147,7 @@ class GeminiSignGrammarService {
             ?: throw IllegalArgumentException("No JSON in reply: ${raw.take(200)}")
 
         val obj = JSONObject(span)
-        val reasoning = obj.optString("reasoning", "Restructured according to BIM Topic-Comment grammar.")
+        val reasoning = obj.optString("reasoning", "Restructured according to Topic-Comment grammar.")
         val tokensJson = obj.optJSONArray("tokens")
         val displayJson = obj.optJSONArray("display")
 
@@ -197,7 +197,7 @@ class GeminiSignGrammarService {
         val dropWords = setOf("yang", "boleh", "di", "ke", "adalah", "ialah", "sekarang", "kerana", "sangat", "pun", "akan")
         val filtered = rawParts.filter { it !in dropWords }
 
-        // Rule-based BIM question reordering: if question word exists, move to end
+        // Rule-based question reordering: if question word exists, move to end
         val questionWords = setOf("apa", "siapa", "bila", "mana")
         val qWord = filtered.find { it in questionWords }
         val finalTokens = if (qWord != null) {
@@ -208,10 +208,10 @@ class GeminiSignGrammarService {
         }
 
         return SignGrammarResult(
-            reasoning = "Rule-based BIM grammar: Spoken glue words omitted and question token aligned.",
+            reasoning = "Rule-based sign grammar: Spoken glue words omitted and question token aligned.",
             tokens = finalTokens,
             displayTokens = finalTokens.map { it.replaceFirstChar { c -> c.uppercase() } },
-            model = "Local BIM Rules"
+            model = "Local Sign Rules"
         )
     }
 }

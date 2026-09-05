@@ -37,6 +37,7 @@ import com.isuara.app.avatar.gl.AvatarGLSurfaceView
 import com.isuara.app.avatar.grammar.GonkaSignGrammarService
 import com.isuara.app.avatar.grammar.SignGrammarResult
 import com.isuara.app.service.Language
+import com.isuara.app.service.strings
 import kotlinx.coroutines.launch
 
 @Composable
@@ -78,16 +79,14 @@ fun AvatarPlayerScreen(
         focusManager.clearFocus()
         val clean = effectiveQuery.trim().lowercase().replace(" ", "_")
 
-        // 1. Direct Catalog Match for single glosses
-        val directMatch = MotionRepository.CATALOG.find {
-            it.key.equals(clean, ignoreCase = true) ||
-            it.title.equals(effectiveQuery.trim(), ignoreCase = true)
-        }
+        // 1. Direct Catalog Match for single glosses across all languages
+        val directMatch = MotionRepository.findExactMatch(effectiveQuery, language)
 
         if (directMatch != null) {
             activeSignKey = directMatch.key
             activeJsonFile = directMatch.assetFileName
-            bimTokens = listOf(directMatch.title.uppercase())
+            val localizedGloss = MotionRepository.getLocalizedGloss(directMatch.key, language)
+            bimTokens = listOf(localizedGloss)
             reasoningTrace = null
             activeModelLabel = null
             grammarResult = null
@@ -206,7 +205,7 @@ fun AvatarPlayerScreen(
                             color = Color(0xFF58A6FF)
                         )
                         Text(
-                            text = "Menganalisis Tatabahasa BIM via 3 Model…",
+                            text = language.strings.refiningGrammar,
                             fontSize = 12.sp,
                             color = Color(0xFF8B949E)
                         )
@@ -223,7 +222,7 @@ fun AvatarPlayerScreen(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = "BIM Final Sign Sequence",
+                                text = language.strings.bimFinalSequence,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF58A6FF)
@@ -235,7 +234,7 @@ fun AvatarPlayerScreen(
                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                             ) {
                                 Text(
-                                    text = "FINAL SIGN",
+                                    text = language.strings.finalSignBadge,
                                     fontSize = 8.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFF3FB950)
@@ -249,7 +248,7 @@ fun AvatarPlayerScreen(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = if (showReasoningPath) "▲ Tutup" else "▼ 3-Model Reasoning",
+                                    text = if (showReasoningPath) "▲ ${language.strings.collapse}" else "▼ ${language.strings.showReasoning}",
                                     fontSize = 10.sp,
                                     color = Color(0xFF58A6FF),
                                     fontWeight = FontWeight.SemiBold
@@ -310,7 +309,7 @@ fun AvatarPlayerScreen(
                             )
 
                             Text(
-                                text = "Laluan Penalaran 3-Model (Reasoning Breakdown):",
+                                text = language.strings.reasoningBreakdown,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFF8B949E)
@@ -358,7 +357,7 @@ fun AvatarPlayerScreen(
                                                         .padding(horizontal = 4.dp, vertical = 1.dp)
                                                 ) {
                                                     Text(
-                                                        text = "CONSENSUS PICK",
+                                                        text = language.strings.consensusPick,
                                                         fontSize = 8.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = Color(0xFF3FB950)
@@ -401,41 +400,6 @@ fun AvatarPlayerScreen(
                                                     color = Color(0xFF8B949E)
                                                 )
                                             }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Consensus Judge Verdict Box
-                            grammarResult?.verdict?.let { verdict ->
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(Color(0x1A238636), RoundedCornerShape(8.dp))
-                                        .border(1.dp, Color(0x663FB950), RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                                    verticalArrangement = Arrangement.spacedBy(3.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "⚖️ Consensus Pick: ${grammarResult?.model ?: verdict.judgeModel}",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF3FB950),
-                                            modifier = Modifier.weight(1f, fill = false),
-                                            maxLines = 1
-                                        )
-                                        verdict.requestId?.let { reqId ->
-                                            Text(
-                                                text = reqId,
-                                                fontSize = 8.sp,
-                                                color = Color(0xFF8B949E),
-                                                maxLines = 1
-                                            )
                                         }
                                     }
                                 }
@@ -507,12 +471,7 @@ fun AvatarPlayerScreen(
                     onValueChange = { inputText = it },
                     placeholder = {
                         Text(
-                            text = when (language) {
-                                Language.MALAY -> "Taip teks atau ayat"
-                                Language.ENGLISH -> "Type text or sentence"
-                                Language.MANDARIN -> "输入文字或句子"
-                                Language.TAMIL -> "உரை அல்லது வாக்கியத்தை தட்டச்சு செய்க"
-                            },
+                            text = language.strings.textToSignPlaceholder,
                             fontSize = 12.sp,
                             color = Color(0xFF8B949E)
                         )
@@ -544,7 +503,7 @@ fun AvatarPlayerScreen(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Send",
+                        contentDescription = language.strings.translate,
                         tint = Color.White,
                         modifier = Modifier.size(22.dp)
                     )
