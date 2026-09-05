@@ -1,3 +1,5 @@
+import { apiUrl } from '../apiBase'
+
 export interface GrammarCandidate {
   model: string
   tokens: string[]
@@ -58,7 +60,11 @@ export async function restructureSentence(sentence: string): Promise<SignGrammar
 
   // 1. Try backend Gonka 3-Model Consensus API if available
   try {
-    const res = await fetch('/api/avatar/restructure', {
+    // apiUrl, not a bare path: the frontend and the API are on different hosts
+    // in production, so a same-origin call lands on the static site, 404s, and
+    // drops silently into the local fallback below — the grammar reasoning
+    // would simply never run once deployed. See lib/apiBase.ts.
+    const res = await fetch(apiUrl('/api/avatar/restructure'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sentence: clean }),
