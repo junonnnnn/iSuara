@@ -1,0 +1,31 @@
+# What the server needs to run. Deliberately does NOT include TensorFlow.
+#
+# The shipped model (bim_lstm_v312_fp16.tflite) is Flex-free, so the standalone
+# LiteRT interpreter runs it — 48MB against TensorFlow's 1.4GB, which is the
+# difference between fitting a free host and not. Verified against this exact
+# file: same class, same speed, outputs agreeing to 1.1e-08.
+#
+# TensorFlow's own notice recommends this package: "tf.lite.Interpreter is
+# deprecated ... Please use the LiteRT interpreter from the ai_edge_litert
+# package."
+#
+# 2.2.0 is the version actually measured, and it publishes a cp312
+# manylinux_2_27_x86_64 wheel, which is what the 3.12 image in the Dockerfile
+# installs — no source build, no compiler in the image.
+ai-edge-litert==2.2.0
+numpy<3
+
+fastapi==0.118.0
+uvicorn[standard]==0.37.0
+httpx>=0.27.0
+
+# GonkaRouter via Anthropic Messages API
+python-dotenv==1.1.1
+
+# ── not installed here ──
+#
+# TensorFlow is needed only for the two optional paths, both development-only:
+# loading a .keras export, and running the older Flex-dependent v3 .tflite
+# files. Neither is on the deployed path. If you need one, see
+# requirements-dev.txt — the version window there is narrow and both bounds are
+# real.
