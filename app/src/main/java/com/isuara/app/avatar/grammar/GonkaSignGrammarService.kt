@@ -18,7 +18,10 @@ class GonkaSignGrammarService {
         const val THIRD_MODEL = "moonshotai/Kimi-K2.6"
     }
 
-    suspend fun restructure(sentence: String): SignGrammarResult = withContext(Dispatchers.IO) {
+    suspend fun restructure(
+        sentence: String,
+        language: com.isuara.app.service.Language = com.isuara.app.service.Language.MALAY
+    ): SignGrammarResult = withContext(Dispatchers.IO) {
         val apiKey = try {
             BuildConfig.GONKA_API_KEY
         } catch (_: Exception) {
@@ -30,7 +33,7 @@ class GonkaSignGrammarService {
             return@withContext fallbackTokenize(sentence)
         }
 
-        val userTurn = SignGrammarPrompt.userTurn(sentence)
+        val userTurn = SignGrammarPrompt.userTurn(sentence, language.menuLabel)
 
         // 3-Way Multi-Model Reasoning across Gonka Network
         val primaryDeferred = async {

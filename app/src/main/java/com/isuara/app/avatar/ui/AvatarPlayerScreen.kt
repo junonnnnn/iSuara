@@ -24,8 +24,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -34,11 +36,14 @@ import com.isuara.app.avatar.engine.MotionPlayer
 import com.isuara.app.avatar.gl.AvatarGLSurfaceView
 import com.isuara.app.avatar.grammar.GonkaSignGrammarService
 import com.isuara.app.avatar.grammar.SignGrammarResult
+import com.isuara.app.service.Language
 import kotlinx.coroutines.launch
 
 @Composable
 fun AvatarPlayerScreen(
-    motionPlayer: MotionPlayer = remember { MotionPlayer() }
+    motionPlayer: MotionPlayer = remember { MotionPlayer() },
+    initialLanguage: Language = Language.MALAY,
+    onLanguageChange: (Language) -> Unit = {}
 ) {
     val context = LocalContext.current
     val repository = remember { MotionRepository(context) }
@@ -46,14 +51,22 @@ fun AvatarPlayerScreen(
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
+    var language by remember { mutableStateOf(initialLanguage) }
+    var languageMenuOpen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialLanguage) {
+        language = initialLanguage
+    }
+
     var glView by remember { mutableStateOf<AvatarGLSurfaceView?>(null) }
     var inputText by remember { mutableStateOf("") }
-    var activeSignKey by remember { mutableStateOf("terima_kasih") }
+    var activeSignKey by remember { mutableStateOf("") }
+    var activeJsonFile by remember { mutableStateOf<String?>(null) }
 
     // Multi-model grammar reasoning state
     var isReasoning by remember { mutableStateOf(false) }
     var reasoningTrace by remember { mutableStateOf<String?>(null) }
-    var bimTokens by remember { mutableStateOf<List<String>>(listOf("TERIMA KASIH")) }
+    var bimTokens by remember { mutableStateOf<List<String>>(emptyList()) }
     var activeModelLabel by remember { mutableStateOf<String?>(null) }
     var grammarResult by remember { mutableStateOf<SignGrammarResult?>(null) }
     var showReasoningPath by remember { mutableStateOf(false) }
@@ -73,6 +86,7 @@ fun AvatarPlayerScreen(
 
         if (directMatch != null) {
             activeSignKey = directMatch.key
+            activeJsonFile = directMatch.assetFileName
             bimTokens = listOf(directMatch.title.uppercase())
             reasoningTrace = null
             activeModelLabel = null
@@ -91,12 +105,22 @@ fun AvatarPlayerScreen(
             isReasoning = true
             showReasoningPath = false
             try {
-                val result = grammarService.restructure(effectiveQuery)
+                val result = grammarService.restructure(effectiveQuery, language)
                 grammarResult = result
                 reasoningTrace = result.reasoning
                 bimTokens = result.displayTokens
                 activeModelLabel = result.model
                 activeSignKey = clean
+
+                // Determine active json file for the sentence
+                val joined = result.tokens.joinToString("_").lowercase()
+                activeJsonFile = when {
+                    joined.contains("encik") && joined.contains("tolong") && joined.contains("apa") ->
+                        "sentence_1_bim_encik_saya_boleh_tolong_apa.json"
+                    joined.contains("hospital") && (joined.contains("kenapa") || joined.contains("datang")) ->
+                        "sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json"
+                    else -> null
+                }
 
                 // Synthesize continuous motion sequence from restructured BIM tokens
                 val synthesized = repository.synthesizeSentence(result.tokens)
@@ -107,6 +131,7 @@ fun AvatarPlayerScreen(
                     // Partial search fallback
                     val fallback = repository.searchVocabulary(effectiveQuery).firstOrNull()
                     if (fallback != null) {
+                        activeJsonFile = fallback.assetFileName
                         val motion = repository.loadMotion(fallback.key)
                         if (motion != null) {
                             motionPlayer.isLooping = false
@@ -125,16 +150,6 @@ fun AvatarPlayerScreen(
             } finally {
                 isReasoning = false
             }
-        }
-    }
-
-    // Load initial motion on start (paused ready state, no auto-play, no looping)
-    LaunchedEffect(Unit) {
-        val motion = repository.loadMotion("terima_kasih")
-        if (motion != null) {
-            motionPlayer.isLooping = false
-            motionPlayer.setMotion(motion, autoPlay = false)
-            bimTokens = listOf("TERIMA KASIH")
         }
     }
 
@@ -435,6 +450,8 @@ fun AvatarPlayerScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .imePadding()
+                .navigationBarsPadding()
                 .fillMaxWidth()
                 .background(Color(0xF0161B22), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                 .border(1.dp, Color(0x3330363D), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
@@ -445,12 +462,57 @@ fun AvatarPlayerScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Compact chip for language selection (matches CameraScreen)
+                Box {
+                    FilledIconButton(
+                        onClick = { languageMenuOpen = true },
+                        modifier = Modifier.size(50.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = Color.White.copy(alpha = 0.12f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            text = language.shortLabel,
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = languageMenuOpen,
+                        onDismissRequest = { languageMenuOpen = false }
+                    ) {
+                        Language.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        option.menuLabel,
+                                        fontWeight = if (option == language) FontWeight.Bold
+                                                     else FontWeight.Normal
+                                    )
+                                },
+                                onClick = {
+                                    language = option
+                                    onLanguageChange(option)
+                                    languageMenuOpen = false
+                                }
+                            )
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
                     placeholder = {
                         Text(
-                            text = "Taip ayat dalam Bahasa Melayu...",
+                            text = when (language) {
+                                Language.MALAY -> "Taip teks atau ayat"
+                                Language.ENGLISH -> "Type text or sentence"
+                                Language.MANDARIN -> "输入文字或句子"
+                                Language.TAMIL -> "உரை அல்லது வாக்கியத்தை தட்டச்சு செய்க"
+                            },
                             fontSize = 12.sp,
                             color = Color(0xFF8B949E)
                         )
