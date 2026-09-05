@@ -254,7 +254,7 @@ export default function App() {
         />
       </div>
 
-      <BottomNav tab={tab} onChange={setTab} />
+      <BottomNav tab={tab} onChange={setTab} language={language} />
     </div>
   )
 }

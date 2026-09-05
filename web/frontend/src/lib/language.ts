@@ -23,6 +23,8 @@ export interface LanguageDef {
   shortLabel: string
 }
 
+export type Language = LanguageDef
+
 export const LANGUAGES: Record<LanguageCode, LanguageDef> = {
   MALAY: {
     code: 'MALAY',

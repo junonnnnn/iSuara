@@ -93,7 +93,7 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
     const tokens = ['encik', 'saya', 'boleh', 'tolong', 'apa']
     const displayTokens = ['Encik', 'Saya', 'Boleh', 'Tolong', 'Apa']
     return {
-      reasoning: 'Consensus established (2/3 models): Canonical BIM Natural Sign sequence [Encik → Saya → Boleh → Tolong → Apa] selected, mapped to sentence_1_bim_encik_saya_boleh_tolong_apa.json.',
+      reasoning: 'Consensus established (2/3 models): Canonical Natural Sign sequence [Encik → Saya → Boleh → Tolong → Apa] selected, mapped to sentence_1_bim_encik_saya_boleh_tolong_apa.json.',
       tokens,
       displayTokens,
       model: 'Gonka Multi-Model Consensus (3 Models)',
@@ -102,7 +102,7 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
           model: 'DeepSeek-V4-Flash',
           tokens,
           displayTokens,
-          reasoning: 'BIM Natural Sign Order: Polite address [Encik], agent [Saya], modal [Boleh], action [Tolong], terminal interrogative [Apa] with eyebrow raise.',
+          reasoning: 'Natural Sign Order: Polite address [Encik], agent [Saya], modal [Boleh], action [Tolong], terminal interrogative [Apa] with eyebrow raise.',
           requestId: `req-${Date.now().toString().slice(-6)}-ds4`,
           isWinner: true,
         },
@@ -125,7 +125,7 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
       ],
       verdict: {
         judgeModel: 'DeepSeek-V4-Flash (Consensus Judge)',
-        reason: 'Consensus established (2/3 models): Canonical BIM Natural Sign sequence [Encik → Saya → Boleh → Tolong → Apa] selected, mapped to sentence_1_bim_encik_saya_boleh_tolong_apa.json.',
+        reason: 'Consensus established (2/3 models): Canonical Natural Sign sequence [Encik → Saya → Boleh → Tolong → Apa] selected, mapped to sentence_1_bim_encik_saya_boleh_tolong_apa.json.',
         choice: 0,
         requestId: `req-judge-${Date.now().toString().slice(-6)}`,
       },
@@ -143,7 +143,7 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
     const tokens = ['apa_khabar', 'hari_ini', 'awak', 'datang', 'hospital', 'kenapa']
     const displayTokens = ['Apa-Khabar', 'Hari-Ini', 'Awak', 'Datang', 'Hospital', 'Kenapa']
     return {
-      reasoning: 'Consensus established (2/3 models): Canonical BIM Natural Sign sequence [Apa-Khabar → Hari-Ini → Awak → Datang → Hospital → Kenapa] selected, mapped to sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json.',
+      reasoning: 'Consensus established (2/3 models): Canonical Natural Sign sequence [Apa-Khabar → Hari-Ini → Awak → Datang → Hospital → Kenapa] selected, mapped to sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json.',
       tokens,
       displayTokens,
       model: 'Gonka Multi-Model Consensus (3 Models)',
@@ -152,7 +152,7 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
           model: 'DeepSeek-V4-Flash',
           tokens,
           displayTokens,
-          reasoning: 'BIM Natural Sign Order: Greeting [Apa-Khabar], temporal setting [Hari-Ini], subject [Awak], location predicate [Datang Hospital], terminal interrogative [Kenapa].',
+          reasoning: 'Natural Sign Order: Greeting [Apa-Khabar], temporal setting [Hari-Ini], subject [Awak], location predicate [Datang Hospital], terminal interrogative [Kenapa].',
           requestId: `req-${Date.now().toString().slice(-6)}-ds4`,
           isWinner: true,
         },
@@ -175,14 +175,14 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
       ],
       verdict: {
         judgeModel: 'DeepSeek-V4-Flash (Consensus Judge)',
-        reason: 'Consensus established (2/3 models): Canonical BIM Natural Sign sequence [Apa-Khabar → Hari-Ini → Awak → Datang → Hospital → Kenapa] selected, mapped to sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json.',
+        reason: 'Consensus established (2/3 models): Canonical Natural Sign sequence [Apa-Khabar → Hari-Ini → Awak → Datang → Hospital → Kenapa] selected, mapped to sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json.',
         choice: 0,
         requestId: `req-judge-${Date.now().toString().slice(-6)}`,
       },
     }
   }
 
-  // General Linguistic BIM Restructuring:
+  // General Linguistic Sign Restructuring:
   // 1. Tokenize words and strip punctuation
   const words = lower
     .replace(/[.,?!;:()"]/g, ' ')
@@ -192,7 +192,7 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
   // 2. Filter spoken filler/glue words
   const filtered = words.filter((w) => !DROP_WORDS.has(w))
 
-  // 3. BIM Question Syntax: Move question markers (apa, siapa, bila, mana, etc.) to sentence end
+  // 3. Question Syntax: Move question markers (apa, siapa, bila, mana, etc.) to sentence end
   const qWord = filtered.find((w) => BIM_QUESTION_WORDS.has(w))
   const finalTokens = qWord
     ? [...filtered.filter((w) => w !== qWord), qWord]
@@ -204,15 +204,15 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
 
   const hasQ = Boolean(qWord)
   const baseReasoning = hasQ
-    ? `BIM Question Syntax: Question marker [${qWord!.toUpperCase()}] shifted to sentence end, spoken glue particles dropped, and Topic-Comment order applied.`
-    : 'BIM Topic-Comment Syntax: Spoken glue particles dropped and core topic concepts prioritized.'
+    ? `Question Syntax: Question marker [${qWord!.toUpperCase()}] shifted to sentence end, spoken glue particles dropped, and Topic-Comment order applied.`
+    : 'Topic-Comment Syntax: Spoken glue particles dropped and core topic concepts prioritized.'
 
-  // Model 1: DeepSeek-V4-Flash (Winning standard BIM Topic-Comment)
+  // Model 1: DeepSeek-V4-Flash (Winning standard Topic-Comment)
   const candidateDeepSeek: GrammarCandidate = {
     model: 'DeepSeek-V4-Flash',
     tokens: finalTokens,
     displayTokens,
-    reasoning: `${baseReasoning} Normalized to Malaysian Sign Language (BIM) root glosses.`,
+    reasoning: `${baseReasoning} Normalized to root sign gloss concepts.`,
     requestId: `req-${Date.now().toString().slice(-6)}-ds4`,
     isWinner: true,
   }
@@ -241,7 +241,7 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
     model: 'Kimi-K2.6',
     tokens: finalTokens,
     displayTokens,
-    reasoning: 'Evaluated visual-spatial spatial coordinates; confirms canonical BIM subject-verb-interrogative alignment.',
+    reasoning: 'Evaluated visual-spatial coordinates; confirms canonical subject-verb-interrogative alignment.',
     requestId: `req-${Date.now().toString().slice(-6)}-km2`,
     isWinner: false,
   }
@@ -251,7 +251,7 @@ function fallbackRestructure(sentence: string): SignGrammarResult {
     choice: 0,
     reason: `Consensus verified across models. DeepSeek-V4-Flash and Kimi-K2.6 agree on [${displayTokens.join(
       ' → ',
-    )}] adhering to authentic BIM Topic-Comment and interrogative placement.`,
+    )}] adhering to authentic Topic-Comment and interrogative placement.`,
     requestId: `req-${Date.now().toString().slice(-6)}-judge`,
   }
 

@@ -211,13 +211,13 @@ export function AvatarScreen({ language = LANGUAGES.MALAY, onLanguageChange }: A
             {isReasoning ? (
               <div className="avatar__reasoning-loading">
                 <div className="avatar__spinner" />
-                <span>Analyzing BIM Grammar across 3 Gonka Models…</span>
+                <span>Analyzing Sign Grammar across 3 Models…</span>
               </div>
             ) : (
               <>
                 <div className="avatar__reasoning-header">
                   <div className="avatar__reasoning-header-left">
-                    <span className="avatar__reasoning-title">BIM Final Sign Sequence</span>
+                    <span className="avatar__reasoning-title">Final Sign Sequence</span>
                     <span className="avatar__final-badge">Final Sign</span>
                   </div>
                   {activeModel && <span className="avatar__reasoning-model">{activeModel}</span>}
@@ -283,25 +283,6 @@ export function AvatarScreen({ language = LANGUAGES.MALAY, onLanguageChange }: A
                         </div>
                       ))}
                     </div>
-
-                    {/* Consensus Judge Verdict */}
-                    {grammarData.verdict && (
-                      <div className="avatar__judge-banner">
-                        <div className="avatar__judge-header">
-                          <span className="avatar__judge-title">
-                            ⚖️ {grammarData.verdict.judgeModel}
-                          </span>
-                          {grammarData.verdict.requestId && (
-                            <span
-                              className="avatar__candidate-req"
-                              title={`Judge Gonka Request ID: ${grammarData.verdict.requestId}`}
-                            >
-                              Judge Req ID: {grammarData.verdict.requestId}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </>
