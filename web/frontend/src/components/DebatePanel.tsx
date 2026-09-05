@@ -28,15 +28,20 @@ export function DebatePanel({ progress, active }: Props) {
   const failed = candidates.filter((c) => c.failed).length
 
   const heading = active
-    ? STAGE_LABELS[stage] || 'Consulting interpreters…'
-    : `${answered} of ${candidates.length} interpreters answered`
+    ? STAGE_LABELS[stage] || 'Gonka Network Consensus…'
+    : `Gonka Consensus: ${answered} of ${candidates.length} models resolved`
 
   return (
     <section className="debate">
-      <h3 className="debate__heading">
-        {active && <span className="spinner" aria-hidden="true" />}
-        {heading}
-      </h3>
+      <div className="debate__header-row">
+        <h3 className="debate__heading">
+          {active && <span className="spinner" aria-hidden="true" />}
+          {heading}
+        </h3>
+        <span className="debate__gonka-tag" title="Inference running via api.gonkarouter.io">
+          Gonka Network
+        </span>
+      </div>
 
       <ol className="debate__agents">
         {candidates.map((c) => {
@@ -46,18 +51,26 @@ export function DebatePanel({ progress, active }: Props) {
               key={c.index}
               className={`debate__agent${chosen ? ' debate__agent--chosen' : ''}`}
             >
-              <span className="debate__model">
-                {shortModelName(c.model)}
-                {/* Marks the judge's pick without relying on the tint alone,
-                    which a colour-blind reader would not see. */}
-                {chosen && <span className="debate__chosen-tag">chosen</span>}
-              </span>
+              <div className="debate__model-row">
+                <span className="debate__model">
+                  {shortModelName(c.model)}
+                  {chosen && <span className="debate__chosen-tag">consensus pick</span>}
+                </span>
+                {c.requestId && (
+                  <span
+                    className="debate__req-badge"
+                    title={`Verifiable Gonka Request ID: ${c.requestId}`}
+                  >
+                    req:{c.requestId.length > 20 ? c.requestId.slice(0, 18) + '…' : c.requestId}
+                  </span>
+                )}
+              </div>
               {c.failed ? (
-                <span className="debate__failed">unavailable</span>
+                <span className="debate__failed">unavailable / timed out</span>
               ) : c.sentence ? (
                 <span className="debate__sentence">{c.sentence}</span>
               ) : (
-                <span className="debate__pending">thinking…</span>
+                <span className="debate__pending">evaluating on Gonka…</span>
               )}
             </li>
           )
@@ -65,15 +78,22 @@ export function DebatePanel({ progress, active }: Props) {
       </ol>
 
       {verdict && (
-        <p className="debate__verdict">
-          <strong>Judge:</strong> {verdict.reason || 'chose the best candidate'}
-        </p>
+        <div className="debate__verdict-block">
+          <p className="debate__verdict">
+            <strong>Gonka Judge (DeepSeek):</strong> {verdict.reason || 'adjudicated consensus across models'}
+          </p>
+          {verdict.requestId && (
+            <span className="debate__verdict-req" title={`Judge Gonka Request ID: ${verdict.requestId}`}>
+              Judge Req ID: {verdict.requestId}
+            </span>
+          )}
+        </div>
       )}
 
       {failed > 0 && (
         <p className="debate__note">
-          {failed} model{failed > 1 ? 's' : ''} did not answer — the debate
-          continues with the rest.
+          {failed} model{failed > 1 ? 's' : ''} did not respond within timeout — consensus
+          evaluated with the remaining models.
         </p>
       )}
     </section>

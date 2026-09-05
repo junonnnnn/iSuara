@@ -622,16 +622,52 @@ body {
  * the panel; now that nothing is hidden it should recede, so it takes the
  * secondary text colour and the small-caps treatment used for section labels.
  */
+.debate__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
 .debate__heading {
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 10px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-empty);
+}
+
+.debate__gonka-tag {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.18);
+  color: #818cf8;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+
+.debate__model-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.debate__req-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
 }
 
 .debate__agents {
@@ -703,7 +739,7 @@ body {
 }
 
 .debate__verdict {
-  margin: 10px 0 0;
+  margin: 0;
   font-size: 12.5px;
   line-height: 1.45;
   color: var(--text-secondary);
@@ -711,6 +747,24 @@ body {
 
 .debate__verdict strong {
   color: var(--confident);
+}
+
+.debate__verdict-block {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  border-left: 2px solid var(--confident);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.debate__verdict-req {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  color: #818cf8;
+  opacity: 0.85;
 }
 
 .debate__note {

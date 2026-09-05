@@ -17,9 +17,9 @@ numpy<3
 
 fastapi==0.118.0
 uvicorn[standard]==0.37.0
+httpx>=0.27.0
 
-# The same provider the Android app uses, so translations match.
-google-genai==1.46.0
+# GonkaRouter via Anthropic Messages API
 python-dotenv==1.1.1
 
 # ── not installed here ──

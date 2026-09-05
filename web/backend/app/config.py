@@ -69,17 +69,52 @@ ALLOWED_ORIGINS = [
 ]
 
 
-def gemini_keys() -> list[str]:
-    """
-    The configured Gemini keys, in slot order.
+GONKA_BASE_URL = os.getenv("GONKA_BASE_URL", "https://api.gonkarouter.io")
 
-    Three separate keys because the free tier limits 5 requests/minute per
-    Google Cloud *project* and one debate costs four calls — see
-    service/GeminiClients.kt. Slot 1 falls back to the original single-key name.
+# The three models that debate on GonkaRouter, matching service/GonkaTranslator.kt.
+DEFAULT_MODEL = "deepseek-ai/DeepSeek-V4-Flash-0731"
+AGENT_MODELS = [
+    DEFAULT_MODEL,
+    "MiniMaxAI/MiniMax-M2.7",
+    "moonshotai/Kimi-K2.6",
+]
+JUDGE_MODEL = DEFAULT_MODEL
+
+
+def _read_local_properties_key() -> str:
+    """Fallback to GONKA_API_KEY in local.properties in repo root if present."""
+    local_props = REPO_ROOT / "local.properties"
+    if not local_props.is_file():
+        return ""
+    try:
+        for line in local_props.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("GONKA_API_KEY="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return ""
+
+
+def gonka_api_key() -> str:
     """
+    The configured GonkaRouter API key.
+
+    Reads GONKA_API_KEY from the environment (.env) and falls back to
+    local.properties in the repository root.
+    """
+    key = os.getenv("GONKA_API_KEY", "").strip()
+    if not key:
+        key = _read_local_properties_key()
+    return key
+
+
+def gemini_keys() -> list[str]:
+    """Legacy Gemini keys fallback."""
     raw = [
         os.getenv("GEMINI_API_KEY_1") or os.getenv("GEMINI_API_KEY") or "",
         os.getenv("GEMINI_API_KEY_2", ""),
         os.getenv("GEMINI_API_KEY_3", ""),
     ]
     return [k.strip() for k in raw if k.strip()]
+

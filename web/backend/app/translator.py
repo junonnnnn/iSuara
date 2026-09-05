@@ -1,275 +1,162 @@
 """
-The multi-agent debate translator — a port of GeminiClients.kt,
-GeminiTranslator.kt and DebateTranslator.kt.
+The multi-model consensus translator running on the Gonka Network (https://api.gonkarouter.io).
 
 BIM glosses arrive loosely ordered and the mapping to a sentence is genuinely
-ambiguous, so a single model just commits to one reading. Three stances disagree
-in useful ways and a judge resolves them. On unambiguous glosses the three
-converge, which is correct but means the cost buys nothing there.
+ambiguous, so a single model just commits to one reading. Three distinct
+Gonka-hosted models (DeepSeek V4-Flash, MiniMax M2.7, Kimi K2.6) answer in parallel
+and DeepSeek adjudicates the consensus.
+
+Every inference step records and propagates its verifiable Gonka Request ID
+(from the HTTP x-request-id response header) directly to the client for the
+Transparency UI.
 
 The judge returns an INDEX, not a sentence. That way the result is always
 something an agent actually proposed — the judge cannot invent a fourth answer —
 and the four languages stay mutually consistent because they come from one
 agent's single response.
-
-Costs four calls per translation. Wall clock is max(agents) + judge.
-
-This is the one part of the app that had to move server-side rather than merely
-being ported: the Android build reads its keys from BuildConfig, which is fine
-on a device the user owns, but a browser bundle is public and shipping the keys
-there would publish them.
 """
 
 import asyncio
-import itertools
 import logging
 from typing import AsyncIterator
 
-from google import genai
-from google.genai import types
-
 from . import config, parsing, prompts
+from .gonka_client import GonkaResult, gonka
 
 log = logging.getLogger(__name__)
 
-# The model the pipeline was originally validated against, and the judge.
-DEFAULT_MODEL = "gemini-3.1-flash-lite"
+# The three models that debate on the Gonka Network.
+DEFAULT_MODEL = config.DEFAULT_MODEL
+AGENT_MODELS = config.AGENT_MODELS
+JUDGE_MODEL = config.JUDGE_MODEL
 
-# The three models that debate.
-#
-# Upstream (service/GonkaTranslator.kt) moved from three prompt-personas on one
-# model to three DIFFERENT models sharing one prompt: diversity then comes from
-# the models themselves, so a disagreement between candidates is attributable to
-# the model rather than to a differing stance, and the system prompt stays a
-# constant across agents.
-#
-# This build stays on Gemini rather than GonkaRouter, which is a deliberate,
-# user-directed divergence from the app — so the same idea is reproduced with
-# three Gemini models spanning two generations and two size tiers. All three are
-# confirmed present for these keys via tools/list_gemini_models.py; guessing ids
-# would fail at runtime, in front of an audience.
-AGENT_MODELS = [
-    DEFAULT_MODEL,
-    "gemini-2.5-flash",
-    "gemini-3.5-flash",
-]
-
-# The judge. Mirrors the Android choice of reusing the default agent model:
-# it sits on the critical path once the agents finish, so it wants to be the
-# fast, clean one rather than the most capable.
-JUDGE_MODEL = DEFAULT_MODEL
+# Compatibility alias for main.py health check
+clients = gonka
 
 # Where the pipeline currently is, for display while the user waits.
-#
-# Deliberately vague — a port of TranslationStage.kt. The label tells the user
-# the multi-agent machinery is working without putting three competing sentences
-# or the judge's reasoning on screen. Those go to the server log instead.
 STAGE_LABELS = {
     "IDLE": "",
-    "CONSULTING": "Consulting interpreters…",
+    "CONSULTING": "Consulting Gonka interpreters…",
     "COLLECTED": "Interpretations received",
-    "JUDGING": "Weighing interpretations…",
-    "DECIDING": "Choosing best translation…",
+    "JUDGING": "Weighing consensus on Gonka Network…",
+    "DECIDING": "Adjudicating final translation…",
 }
 
-# Long enough for each stage label to actually be read.
+# Hold long enough for each stage transition to be read (mirrors STAGE_HOLD_MS = 400L in DebateTranslator.kt).
 _STAGE_HOLD_S = 0.4
-
-
-class GeminiClients:
-    """
-    The pool of Gemini clients — one per configured API key.
-
-    A key is bound at client construction, so giving each debate agent its own
-    key means giving each its own client. That is the point: the free-tier limit
-    is 5 requests/minute *per Google Cloud project*, and the debate costs 4 calls
-    per translation, so a single key allows barely one translation a minute.
-    Three keys from three separate projects give three independent buckets. Keys
-    issued from the *same* project share one bucket and buy nothing.
-
-    Each client owns its own connection pool, so the pool is built once and
-    shared. Never construct a client per request.
-    """
-
-    def __init__(self) -> None:
-        self._keys = config.gemini_keys()
-        self._clients: list[genai.Client] | None = None
-
-        if not self._keys:
-            log.warning("No Gemini API key configured — translation disabled")
-        elif len(self._keys) == 3:
-            log.info("3 Gemini keys configured (~15 req/min if separate projects)")
-        else:
-            # Still works, just with proportionally less quota, so say so loudly
-            # rather than letting it surface later as mysterious 429s.
-            log.warning(
-                "Only %d of 3 Gemini keys configured — agents will share keys and "
-                "quota. Add GEMINI_API_KEY_2/_3 to web/backend/.env.",
-                len(self._keys),
-            )
-
-    @property
-    def is_configured(self) -> bool:
-        return bool(self._keys)
-
-    @property
-    def slot_count(self) -> int:
-        return len(self._keys)
-
-    def for_slot(self, index: int) -> genai.Client:
-        """The client for agent/judge slot `index`, wrapping when fewer keys are set."""
-        if not self._keys:
-            raise RuntimeError("no Gemini API key configured")
-        if self._clients is None:
-            self._clients = [genai.Client(api_key=k) for k in self._keys]
-        return self._clients[index % len(self._clients)]
-
-    def slot_of(self, index: int) -> int:
-        return -1 if not self._keys else index % len(self._keys)
-
-
-clients = GeminiClients()
-
-
-async def _complete(system: str, user: str, client: genai.Client, model_id: str) -> str:
-    """
-    One raw Gemini completion on a specific client, and therefore a specific key.
-
-    Shared by the agents and the judge, which needs the same transport but not
-    the translation contract.
-    """
-    response = await client.aio.models.generate_content(
-        model=model_id,
-        contents=user,
-        config=types.GenerateContentConfig(system_instruction=system),
-    )
-    return response.text or ""
 
 
 async def _agent(
     words: list[str],
-    slot: int,
     model_id: str,
     emotion: dict | None = None,
-) -> dict[str, str | None]:
+) -> tuple[dict[str, str | None], str]:
     """
-    One interpreter: gloss list in, translation out.
+    One Gonka interpreter: gloss list in, translation dict + request_id out.
 
-    Every agent gets the identical system prompt — see AGENT_MODELS. The only
-    per-request variation is the observed expression line, which prompts.user_turn
-    adds and which is the same for all three agents within a request.
-
-    One retry, because a model that rambles once usually complies on a re-ask and
-    a second round trip is cheaper than falling back to raw glosses. This catches
-    parse failures only — a 429 or 503 propagates immediately, which is what we
-    want since the debate tolerates a missing agent and retrying an exhausted
-    quota would only stall.
+    Every agent receives the identical system prompt. One retry on parse errors,
+    as models occasionally prepend formatting or markdown commentary on initial attempt.
     """
     user = prompts.user_turn(words, emotion)
     last_error: Exception | None = None
 
     for attempt in range(2):
         try:
-            raw = await _complete(prompts.SYSTEM, user, clients.for_slot(slot), model_id)
-            translation = parsing.extract_translation(raw)
-            log.info("key[%d] %s %s -> %s", slot, model_id, words, translation["ms"])
-            return translation
+            res: GonkaResult = await gonka.complete(
+                model_id=model_id,
+                system=prompts.SYSTEM,
+                user=user,
+                max_tokens=2048,
+            )
+            translation = parsing.extract_translation(res.text)
+            log.info("[%s] %s -> %s (req_id: %s)", model_id, words, translation["ms"], res.request_id)
+            return translation, res.request_id
         except ValueError as e:
             last_error = e
-            log.warning("key[%d] unparseable reply, attempt %d: %s", slot, attempt + 1, e)
+            log.warning("[%s] unparseable reply, attempt %d: %s", model_id, attempt + 1, e)
+        except Exception as e:
+            # Network or timeout errors: do not retry to avoid long stalls
+            log.warning("[%s] network or timeout error: %s", model_id, e)
+            raise
 
     raise last_error or RuntimeError("translation failed")
 
 
-_judge_slot = itertools.count()
-
-
 async def _judge(
     words: list[str], candidates: list[dict[str, str | None]]
-) -> tuple[int, str]:
+) -> tuple[int, str, str]:
     """
-    Returns the winning candidate's index and the judge's stated reason.
-
-    The reason is surfaced in the UI rather than only logged — it is what makes
-    the accordion's verdict row meaningful instead of an unexplained pick.
-
-    The judge rotates round-robin across the keys: there are four calls per
-    translation but only three keys, so pinning the judge to one would make that
-    key carry two calls per translation and hit its 5/min ceiling first.
+    Returns (winning_candidate_index, reason, judge_request_id).
     """
-    slot = clients.slot_of(next(_judge_slot))
-    log.info("judging on key[%d]", slot)
-    raw = await _complete(
-        prompts.JUDGE, prompts.judge_turn(words, candidates), clients.for_slot(slot), JUDGE_MODEL
+    log.info("judging consensus on GonkaRouter with %s", JUDGE_MODEL)
+    res: GonkaResult = await gonka.complete(
+        model_id=JUDGE_MODEL,
+        system=prompts.JUDGE,
+        user=prompts.judge_turn(words, candidates),
+        max_tokens=1024,
     )
-    choice, reason = parsing.extract_choice(raw, len(candidates))
-    log.info('judge chose [%d] "%s" — %s', choice, candidates[choice]["ms"], reason)
-    return choice, reason
+    choice, reason = parsing.extract_choice(res.text, len(candidates))
+    log.info('judge chose [%d] "%s" — %s (req_id: %s)', choice, candidates[choice]["ms"], reason, res.request_id)
+    return choice, reason, res.request_id
 
 
 async def debate(words: list[str], emotion: dict | None = None) -> AsyncIterator[dict]:
     """
-    Runs the debate, streaming events as they happen.
+    Runs the multi-model debate on Gonka Network, streaming events as they happen.
 
-    Events, mirroring DebateProgress.kt:
-      {"stage": ...}                     pipeline stage changed
-      {"candidate": {index, model, sentence?, failed}}   one agent resolved
-      {"verdict": {choice, reason}}      the judge decided
-      {"translation": {...}}             the final answer
-
-    Agents are revealed **as they arrive** rather than after the slowest
-    finishes. The Kotlin notes a measured spread of ~9s to ~126s across its three
-    models, so batching the reveal would mean minutes of dead air — which is the
-    whole reason DebateProgress exists alongside the flat stage enum.
-
-    Agent i draws on key slot i, so the three consume three separate free-tier
-    quota buckets rather than competing for one.
+    Events:
+      {"stage": ...}                                     pipeline stage transition
+      {"candidates": [...]}                              initial slots with model names
+      {"candidate": {index, model, sentence, failed, requestId}}  one model resolved
+      {"verdict": {choice, reason, requestId}}           judge decision with Gonka request ID
+      {"translation": {...}}                             final output with request ID traceability
     """
     if not words:
         raise ValueError("no glosses to translate")
 
     yield {"stage": "CONSULTING"}
 
-    # Announce the slots up front so the UI can lay out all three rows as
-    # pending, then fill each in when its model answers.
+    # Announce slots up front so the UI renders all three models as pending
     yield {
         "candidates": [
-            {"index": i, "model": model, "sentence": None, "failed": False}
+            {"index": i, "model": model, "sentence": None, "failed": False, "requestId": None}
             for i, model in enumerate(AGENT_MODELS)
         ]
     }
 
-    async def run(index: int) -> tuple[int, dict[str, str | None] | None, Exception | None]:
-        """
-        Wraps an agent so completion carries its own index.
-
-        asyncio.as_completed yields results in finishing order and gives no way
-        back to the task that produced them, so the index rides along rather
-        than being reconstructed afterwards.
-        """
+    async def run(index: int) -> tuple[int, dict[str, str | None] | None, str | None, Exception | None]:
         try:
-            return index, await _agent(words, clients.slot_of(index), AGENT_MODELS[index], emotion), None
-        except Exception as e:  # noqa: BLE001 — reported per-agent, never fatal
-            return index, None, e
+            translation, req_id = await _agent(words, AGENT_MODELS[index], emotion)
+            return index, translation, req_id, None
+        except Exception as e:
+            return index, None, None, e
 
     tasks = [asyncio.create_task(run(i)) for i in range(len(AGENT_MODELS))]
 
-    # Keyed by index so the judge sees candidates in a stable order regardless
-    # of which model happened to answer first.
     resolved: dict[int, dict[str, str | None]] = {}
+    request_ids: dict[int, str] = {}
 
     for finished in asyncio.as_completed(tasks):
-        index, translation, error = await finished
+        index, translation, req_id, error = await finished
         model = AGENT_MODELS[index]
 
         if error is not None or translation is None:
             log.warning("interpreter[%d] (%s) failed: %s", index, model, error)
             yield {
-                "candidate": {"index": index, "model": model, "sentence": None, "failed": True}
+                "candidate": {
+                    "index": index,
+                    "model": model,
+                    "sentence": None,
+                    "failed": True,
+                    "requestId": req_id,
+                }
             }
             continue
 
         resolved[index] = translation
+        if req_id:
+            request_ids[index] = req_id
+
         log.info("candidate[%d] (%s): %s", index, model, translation["ms"])
         yield {
             "candidate": {
@@ -277,15 +164,16 @@ async def debate(words: list[str], emotion: dict | None = None) -> AsyncIterator
                 "model": model,
                 "sentence": translation["ms"],
                 "failed": False,
+                "requestId": req_id,
             }
         }
 
     candidates = [resolved[i] for i in sorted(resolved)]
 
     if not candidates:
-        raise RuntimeError(f"all {len(AGENT_MODELS)} interpreters failed")
+        raise RuntimeError(f"all {len(AGENT_MODELS)} Gonka interpreters failed")
 
-    # Nothing to choose between — skip the judge and its latency.
+    # If only one candidate succeeded, return it unjudged
     if len(candidates) == 1:
         log.info("only one interpreter succeeded, returning it unjudged")
         yield {"stage": "IDLE"}
@@ -296,17 +184,30 @@ async def debate(words: list[str], emotion: dict | None = None) -> AsyncIterator
     await asyncio.sleep(_STAGE_HOLD_S)
     yield {"stage": "JUDGING"}
 
-    # A failed judge must not discard candidates we already hold; an arbitrary
-    # but valid answer beats falling back to raw glosses.
     reason = ""
+    judge_req_id = ""
     try:
-        chosen, reason = await _judge(words, candidates)
+        chosen, reason, judge_req_id = await _judge(words, candidates)
     except Exception as e:
-        log.warning("judge failed, using first candidate: %s", e)
+        log.warning("judge failed, falling back to first candidate: %s", e)
         chosen = 0
 
-    yield {"verdict": {"choice": chosen, "reason": reason}}
+    yield {
+        "verdict": {
+            "choice": chosen,
+            "reason": reason,
+            "requestId": judge_req_id,
+        }
+    }
     yield {"stage": "DECIDING"}
     await asyncio.sleep(_STAGE_HOLD_S)
     yield {"stage": "IDLE"}
-    yield {"translation": candidates[chosen]}
+
+    final_translation = dict(candidates[chosen])
+    final_translation["requestIds"] = [
+        request_ids.get(i) for i in sorted(resolved) if i in request_ids
+    ]
+    if judge_req_id:
+        final_translation["judgeRequestId"] = judge_req_id
+
+    yield {"translation": final_translation}

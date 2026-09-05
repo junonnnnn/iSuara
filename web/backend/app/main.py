@@ -196,6 +196,8 @@ async def health() -> dict:
         "model": interpreter.backend if interpreter else "unavailable",
         "modelError": MODEL_ERROR,
         "classes": len(interpreter.labels) if interpreter else 0,
-        "translationEnabled": translator.clients.is_configured,
-        "keySlots": translator.clients.slot_count,
+        "translationEnabled": translator.gonka.is_configured,
+        "provider": "GonkaRouter",
+        "models": config.AGENT_MODELS,
+        "keySlots": 3,
     }

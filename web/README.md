@@ -149,7 +149,7 @@ container and needs a host that runs one. They find each other through
 origins — recognition over the WebSocket and a full three-agent debate both work
 across the boundary.
 
-**The Gemini keys go on the API host only.** Never in the frontend's build. Vite
+**The Gonka key goes on the API host only.** Never in the frontend's build. Vite
 inlines every `VITE_` variable into the JavaScript it ships, so a key placed
 there is readable by anyone who opens the page. `VITE_API_BASE` is a URL, not a
 credential, which is why it is allowed to be one.
@@ -179,9 +179,9 @@ Set these in the host's environment:
 | Variable | Value |
 |---|---|
 | `ALLOWED_ORIGINS` | the frontend's origin, e.g. `https://isuara.vercel.app` |
-| `GEMINI_API_KEY_1/2/3` | one key per debate agent, each from a different Google Cloud project |
+| `GONKA_API_KEY` | your GonkaRouter API key (`sk-...` from `https://gonkarouter.io`) |
 
-Without the keys the API still recognises signs; translation falls back to the
+Without the key the API still recognises signs; translation falls back to the
 raw glosses exactly as the Android build does.
 
 ### Frontend

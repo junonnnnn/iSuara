@@ -37,6 +37,8 @@ export interface Health {
   classes: number
   translationEnabled: boolean
   keySlots: number
+  provider?: string
+  models?: string[]
 }
 
 export async function fetchHealth(): Promise<Health> {
@@ -45,18 +47,20 @@ export async function fetchHealth(): Promise<Health> {
   return response.json()
 }
 
-/** One agent's slot in the debate — mirrors CandidateView in DebateProgress.kt. */
+/** One agent's slot in the debate — with verifiable Gonka request ID. */
 export interface CandidateView {
   index: number
   model: string
   sentence: string | null
   failed: boolean
+  requestId?: string | null
 }
 
-/** The judge's decision — mirrors JudgeVerdict.kt. */
+/** The judge's decision — mirrors JudgeVerdict.kt with judge Gonka request ID. */
 export interface JudgeVerdict {
   choice: number
   reason: string
+  requestId?: string | null
 }
 
 /** Everything the UI needs to show the debate as it happens. */
@@ -73,25 +77,18 @@ export const IDLE_PROGRESS: DebateProgress = {
 }
 
 /**
- * Display labels for the debate agents.
- *
- * LABELS ONLY — nothing here changes which model answers. Every request still
- * goes to the Gemini model the corresponding key is for; AGENT_MODELS in
- * web/backend/app/translator.py is what actually runs, and the server logs and
- * the wire protocol both carry the real id.
- *
- * Written down plainly because a reader seeing "DeepSeek" in the interface and
- * `gemini-3.1-flash-lite` in the logs should be able to find out why in one
- * place rather than assuming one of the two is a bug.
+ * Display labels for the Gonka Router debate agents.
  */
 const DISPLAY_NAMES: Record<string, string> = {
-  'gemini-3.1-flash-lite': 'DeepSeek-V4-Flash',
-  'gemini-2.5-flash': 'MiniMax-M2.7',
-  'gemini-3.5-flash': 'Kimi-K2.6',
+  'deepseek-ai/DeepSeek-V4-Flash-0731': 'DeepSeek-V4-Flash',
+  'DeepSeek-V4-Flash-0731': 'DeepSeek-V4-Flash',
+  'MiniMaxAI/MiniMax-M2.7': 'MiniMax-M2.7',
+  'moonshotai/Kimi-K2.6': 'Kimi-K2.6',
 }
 
 /** The label for a model id — its alias if it has one, otherwise the bare name. */
 export function shortModelName(model: string): string {
+  if (DISPLAY_NAMES[model]) return DISPLAY_NAMES[model]
   const slash = model.lastIndexOf('/')
   const bare = slash >= 0 ? model.slice(slash + 1) : model
   return DISPLAY_NAMES[bare] ?? bare
