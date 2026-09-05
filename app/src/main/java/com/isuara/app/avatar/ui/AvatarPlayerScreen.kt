@@ -36,17 +36,27 @@ import com.isuara.app.avatar.engine.MotionPlayer
 import com.isuara.app.avatar.gl.AvatarGLSurfaceView
 import com.isuara.app.avatar.grammar.GonkaSignGrammarService
 import com.isuara.app.avatar.grammar.SignGrammarResult
+import com.isuara.app.service.Language
 import kotlinx.coroutines.launch
 
 @Composable
 fun AvatarPlayerScreen(
-    motionPlayer: MotionPlayer = remember { MotionPlayer() }
+    motionPlayer: MotionPlayer = remember { MotionPlayer() },
+    initialLanguage: Language = Language.MALAY,
+    onLanguageChange: (Language) -> Unit = {}
 ) {
     val context = LocalContext.current
     val repository = remember { MotionRepository(context) }
     val grammarService = remember { GonkaSignGrammarService() }
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+
+    var language by remember { mutableStateOf(initialLanguage) }
+    var languageMenuOpen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(initialLanguage) {
+        language = initialLanguage
+    }
 
     var glView by remember { mutableStateOf<AvatarGLSurfaceView?>(null) }
     var inputText by remember { mutableStateOf("") }
@@ -95,7 +105,7 @@ fun AvatarPlayerScreen(
             isReasoning = true
             showReasoningPath = false
             try {
-                val result = grammarService.restructure(effectiveQuery)
+                val result = grammarService.restructure(effectiveQuery, language)
                 grammarResult = result
                 reasoningTrace = result.reasoning
                 bimTokens = result.displayTokens
@@ -452,12 +462,57 @@ fun AvatarPlayerScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Compact chip for language selection (matches CameraScreen)
+                Box {
+                    FilledIconButton(
+                        onClick = { languageMenuOpen = true },
+                        modifier = Modifier.size(50.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = Color.White.copy(alpha = 0.12f)
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            text = language.shortLabel,
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = languageMenuOpen,
+                        onDismissRequest = { languageMenuOpen = false }
+                    ) {
+                        Language.entries.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        option.menuLabel,
+                                        fontWeight = if (option == language) FontWeight.Bold
+                                                     else FontWeight.Normal
+                                    )
+                                },
+                                onClick = {
+                                    language = option
+                                    onLanguageChange(option)
+                                    languageMenuOpen = false
+                                }
+                            )
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
                     placeholder = {
                         Text(
-                            text = "Taip text or sentence",
+                            text = when (language) {
+                                Language.MALAY -> "Taip teks atau ayat"
+                                Language.ENGLISH -> "Type text or sentence"
+                                Language.MANDARIN -> "输入文字或句子"
+                                Language.TAMIL -> "உரை அல்லது வாக்கியத்தை தட்டச்சு செய்க"
+                            },
                             fontSize = 12.sp,
                             color = Color(0xFF8B949E)
                         )

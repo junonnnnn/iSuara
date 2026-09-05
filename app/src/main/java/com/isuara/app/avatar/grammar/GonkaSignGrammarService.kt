@@ -16,7 +16,10 @@ class GonkaSignGrammarService {
         private const val TAG = "GonkaSignGrammar"
     }
 
-    suspend fun restructure(sentence: String): SignGrammarResult = withContext(Dispatchers.IO) {
+    suspend fun restructure(
+        sentence: String,
+        language: com.isuara.app.service.Language = com.isuara.app.service.Language.MALAY
+    ): SignGrammarResult = withContext(Dispatchers.IO) {
         val norm = sentence.trim().lowercase()
             .replace(Regex("[.,?!;:]"), "")
             .replace(Regex("[-_\\s]+"), " ")
@@ -24,7 +27,11 @@ class GonkaSignGrammarService {
         // ── Demo Hardcoded Sentence 1: ENCIK, SAYA BOLEH TOLONG APA? ──
         if ((norm.contains("encik") && norm.contains("tolong") && norm.contains("apa")) ||
             norm == "encik saya boleh tolong apa" ||
-            norm == "encik apa yang saya boleh tolong"
+            norm == "encik apa yang saya boleh tolong" ||
+            (norm.contains("help") && (norm.contains("how") || norm.contains("what") || norm.contains("can") || norm.contains("sir"))) ||
+            norm.contains("what can i help") || norm.contains("how can i help") ||
+            norm.contains("帮") || norm.contains("协助") || norm.contains("有什么可以帮") ||
+            norm.contains("உதவ")
         ) {
             delay(650) // Brief reasoning simulation for demo
             val c1 = GrammarCandidate(
@@ -68,8 +75,12 @@ class GonkaSignGrammarService {
         }
 
         // ── Demo Hardcoded Sentence 2: APA-KHABAR, HARI-INI AWAK DATANG HOSPITAL KENAPA? ──
-        if ((norm.contains("hospital") && (norm.contains("kenapa") || norm.contains("datang") || norm.contains("awak") || norm.contains("apa khabar"))) ||
-            norm.contains("apa khabar hari ini awak datang hospital kenapa")
+        if ((norm.contains("hospital") && (norm.contains("kenapa") || norm.contains("datang") || norm.contains("awak") || norm.contains("apa khabar") || norm.contains("why") || norm.contains("today") || norm.contains("come"))) ||
+            norm.contains("apa khabar hari ini awak datang hospital kenapa") ||
+            (norm.contains("hospital") && norm.contains("why")) ||
+            (norm.contains("how are you") && norm.contains("hospital")) ||
+            (norm.contains("医院") && (norm.contains("为什么") || norm.contains("来") || norm.contains("你好") || norm.contains("看病") || norm.contains("今天"))) ||
+            norm.contains("மருத்துவமனை")
         ) {
             delay(650) // Brief reasoning simulation for demo
             val c1 = GrammarCandidate(
@@ -117,7 +128,7 @@ class GonkaSignGrammarService {
             return@withContext fallbackTokenize(sentence)
         }
 
-        val userTurn = SignGrammarPrompt.userTurn(sentence)
+        val userTurn = SignGrammarPrompt.userTurn(sentence, language.menuLabel)
 
         // 3-Way Multi-Model Reasoning powered by Gemini backend while preserving DeepSeek, MiniMax, Kimi displays
         val primaryDeferred = async {

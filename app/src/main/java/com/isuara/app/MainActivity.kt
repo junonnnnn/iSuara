@@ -190,7 +190,10 @@ class MainActivity : ComponentActivity() {
                                         onLanguageChange = { languagePrefs?.set(it) }
                                     )
                                 } else {
-                                    com.isuara.app.avatar.ui.AvatarPlayerScreen()
+                                    com.isuara.app.avatar.ui.AvatarPlayerScreen(
+                                        initialLanguage = languagePrefs?.get() ?: Language.MALAY,
+                                        onLanguageChange = { languagePrefs?.set(it) }
+                                    )
                                 }
                             }
                         }
