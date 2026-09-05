@@ -24,8 +24,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -48,12 +50,13 @@ fun AvatarPlayerScreen(
 
     var glView by remember { mutableStateOf<AvatarGLSurfaceView?>(null) }
     var inputText by remember { mutableStateOf("") }
-    var activeSignKey by remember { mutableStateOf("terima_kasih") }
+    var activeSignKey by remember { mutableStateOf("") }
+    var activeJsonFile by remember { mutableStateOf<String?>(null) }
 
     // Multi-model grammar reasoning state
     var isReasoning by remember { mutableStateOf(false) }
     var reasoningTrace by remember { mutableStateOf<String?>(null) }
-    var bimTokens by remember { mutableStateOf<List<String>>(listOf("TERIMA KASIH")) }
+    var bimTokens by remember { mutableStateOf<List<String>>(emptyList()) }
     var activeModelLabel by remember { mutableStateOf<String?>(null) }
     var grammarResult by remember { mutableStateOf<SignGrammarResult?>(null) }
     var showReasoningPath by remember { mutableStateOf(false) }
@@ -73,6 +76,7 @@ fun AvatarPlayerScreen(
 
         if (directMatch != null) {
             activeSignKey = directMatch.key
+            activeJsonFile = directMatch.assetFileName
             bimTokens = listOf(directMatch.title.uppercase())
             reasoningTrace = null
             activeModelLabel = null
@@ -98,6 +102,16 @@ fun AvatarPlayerScreen(
                 activeModelLabel = result.model
                 activeSignKey = clean
 
+                // Determine active json file for the sentence
+                val joined = result.tokens.joinToString("_").lowercase()
+                activeJsonFile = when {
+                    joined.contains("encik") && joined.contains("tolong") && joined.contains("apa") ->
+                        "sentence_1_bim_encik_saya_boleh_tolong_apa.json"
+                    joined.contains("hospital") && (joined.contains("kenapa") || joined.contains("datang")) ->
+                        "sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json"
+                    else -> null
+                }
+
                 // Synthesize continuous motion sequence from restructured BIM tokens
                 val synthesized = repository.synthesizeSentence(result.tokens)
                 if (synthesized != null) {
@@ -107,6 +121,7 @@ fun AvatarPlayerScreen(
                     // Partial search fallback
                     val fallback = repository.searchVocabulary(effectiveQuery).firstOrNull()
                     if (fallback != null) {
+                        activeJsonFile = fallback.assetFileName
                         val motion = repository.loadMotion(fallback.key)
                         if (motion != null) {
                             motionPlayer.isLooping = false
@@ -125,16 +140,6 @@ fun AvatarPlayerScreen(
             } finally {
                 isReasoning = false
             }
-        }
-    }
-
-    // Load initial motion on start (paused ready state, no auto-play, no looping)
-    LaunchedEffect(Unit) {
-        val motion = repository.loadMotion("terima_kasih")
-        if (motion != null) {
-            motionPlayer.isLooping = false
-            motionPlayer.setMotion(motion, autoPlay = false)
-            bimTokens = listOf("TERIMA KASIH")
         }
     }
 
@@ -435,6 +440,8 @@ fun AvatarPlayerScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .imePadding()
+                .navigationBarsPadding()
                 .fillMaxWidth()
                 .background(Color(0xF0161B22), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                 .border(1.dp, Color(0x3330363D), RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
@@ -450,7 +457,7 @@ fun AvatarPlayerScreen(
                     onValueChange = { inputText = it },
                     placeholder = {
                         Text(
-                            text = "Taip ayat dalam Bahasa Melayu...",
+                            text = "Taip text or sentence",
                             fontSize = 12.sp,
                             color = Color(0xFF8B949E)
                         )
