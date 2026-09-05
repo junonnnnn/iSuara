@@ -139,7 +139,17 @@ class MotionRepository(private val context: Context) {
             VocabularyItem("kami", "Kami", "We / Us", "Daily Conversation", assetFileName = "kami.json"),
             VocabularyItem("mereka", "Mereka", "They / Them", "Daily Conversation", assetFileName = "mereka.json"),
             VocabularyItem("rumah", "Rumah", "Home / House", "Places", assetFileName = "rumah.json"),
-            VocabularyItem("benda", "Benda", "Things / Items", "Daily Conversation", assetFileName = "benda.json")
+            VocabularyItem("benda", "Benda", "Things / Items", "Daily Conversation", assetFileName = "benda.json"),
+            VocabularyItem("saya", "Saya", "I / Me", "Daily Conversation", assetFileName = "saya.json"),
+            VocabularyItem("awak", "Awak", "You", "Daily Conversation", assetFileName = "awak.json"),
+            VocabularyItem("datang", "Datang", "Come / Arrive", "Daily Conversation", assetFileName = "datang.json"),
+            VocabularyItem("yang", "Yang", "Which / That", "Daily Conversation", assetFileName = "yang.json"),
+
+            // Synthesized Dual-Version Continuous Sentences
+            VocabularyItem("sentence_1_bim_encik_saya_boleh_tolong_apa", "BIM: Encik, Saya Boleh Tolong Apa?", "Sir, what can I help you with? (BIM)", "Sentences", assetFileName = "sentence_1_bim_encik_saya_boleh_tolong_apa.json"),
+            VocabularyItem("sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa", "BIM: Apa-Khabar, Hari-Ini Awak Datang Hospital Kenapa?", "Hello, why did you come to the hospital today? (BIM)", "Sentences", assetFileName = "sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa.json"),
+            VocabularyItem("sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong", "KTBM: Encik Apa Yang Saya Boleh Tolong", "Sir, what can I help you with? (KTBM)", "Sentences", assetFileName = "sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong.json"),
+            VocabularyItem("sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini", "KTBM: Apa Khabar Kenapa Datang Hospital Hari Ini", "Hello, why did you come to the hospital today? (KTBM)", "Sentences", assetFileName = "sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini.json")
         )
 
         // Vocabulary aliases for continuous grammatical sentences
@@ -153,7 +163,11 @@ class MotionRepository(private val context: Context) {
             "saudara" to "keluarga",
             "bantu" to "tolong",
             "bantuan" to "tolong",
-            "lari" to "berlari"
+            "lari" to "berlari",
+            "apa-khabar" to "apa_khabar",
+            "hari-ini" to "hari_ini",
+            "sakit-perut" to "sakit_perut",
+            "sakit-kepala" to "sakit_kepala"
         )
     }
 
@@ -163,7 +177,7 @@ class MotionRepository(private val context: Context) {
      * Loads a motion track by vocabulary key, resolving aliases if necessary.
      */
     fun loadMotion(key: String): BimMotion? {
-        val cleanKey = key.trim().lowercase().replace(Regex("[.,?!;]"), "")
+        val cleanKey = key.trim().lowercase().replace(Regex("[.,?!;]"), "").replace(Regex("[-\\s]+"), "_")
         val resolvedKey = ALIASES[cleanKey] ?: cleanKey
         val cached = cache[resolvedKey]
         if (cached != null) return cached
@@ -200,7 +214,25 @@ class MotionRepository(private val context: Context) {
      * Synthesizes a continuous sentence by joining multiple vocabulary words with a fast 8-frame co-articulation bridge.
      */
     fun synthesizeSentence(words: List<String>): BimMotion? {
-        val motions = words.mapNotNull { loadMotion(it) }
+        val normalizedWords = words.map {
+            it.trim().lowercase().replace(Regex("[.,?!;]"), "").replace(Regex("[-\\s]+"), "_")
+        }
+
+        // Direct precompiled sentence check
+        val joinedKey = normalizedWords.joinToString("_")
+        val precompiled = when (joinedKey) {
+            "encik_saya_boleh_tolong_apa" -> "sentence_1_bim_encik_saya_boleh_tolong_apa"
+            "apa_khabar_hari_ini_awak_datang_hospital_kenapa" -> "sentence_2_bim_apa_khabar_hari_ini_awak_datang_hospital_kenapa"
+            "encik_apa_yang_saya_boleh_tolong" -> "sentence_1_ktbm_encik_apa_yang_saya_boleh_tolong"
+            "apa_khabar_kenapa_datang_hospital_hari_ini" -> "sentence_2_ktbm_apa_khabar_kenapa_datang_hospital_hari_ini"
+            else -> null
+        }
+        if (precompiled != null) {
+            val motion = loadMotion(precompiled)
+            if (motion != null) return motion
+        }
+
+        val motions = normalizedWords.mapNotNull { loadMotion(it) }
         if (motions.isEmpty()) return null
         if (motions.size == 1) return motions[0]
 
