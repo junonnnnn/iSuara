@@ -152,48 +152,6 @@ fun AvatarPlayerScreen(
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Quick Demo Scenarios (Police & Doctor)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFF1E2A3A), RoundedCornerShape(12.dp))
-                        .border(1.dp, Color(0xFF388BFD), RoundedCornerShape(12.dp))
-                        .clickable(enabled = !isReasoning) {
-                            inputText = "Encik, apa yang saya boleh tolong?"
-                            triggerPlay("Encik, apa yang saya boleh tolong?", startPlaying = true)
-                        }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "🚨 Polis: Boleh tolong?",
-                        fontSize = 11.sp,
-                        color = Color(0xFF58A6FF),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFF192F23), RoundedCornerShape(12.dp))
-                        .border(1.dp, Color(0xFF3FB950), RoundedCornerShape(12.dp))
-                        .clickable(enabled = !isReasoning) {
-                            inputText = "Anak awak sakit apa sekarang?"
-                            triggerPlay("Anak awak sakit apa sekarang?", startPlaying = true)
-                        }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "🩺 Doktor: Anak sakit apa?",
-                        fontSize = 11.sp,
-                        color = Color(0xFF3FB950),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-
             // Reasoning Status or Token Chips
             AnimatedVisibility(
                 visible = isReasoning || bimTokens.isNotEmpty(),

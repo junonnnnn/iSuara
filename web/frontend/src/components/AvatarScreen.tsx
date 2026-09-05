@@ -194,31 +194,6 @@ export function AvatarScreen() {
       {status && <p className="avatar__status">{status}</p>}
 
       <div className="avatar__controls-bottom">
-        {/* 1-Click Quick Demo Presets */}
-        <div className="avatar__presets">
-          <button
-            type="button"
-            className="avatar__preset-btn avatar__preset-btn--police"
-            onClick={() => {
-              setInput('Encik, apa yang saya boleh tolong?')
-              void play('Encik, apa yang saya boleh tolong?')
-            }}
-            disabled={isReasoning}
-          >
-            🚨 Polis: Boleh tolong?
-          </button>
-          <button
-            type="button"
-            className="avatar__preset-btn avatar__preset-btn--doctor"
-            onClick={() => {
-              setInput('Anak awak sakit apa sekarang?')
-              void play('Anak awak sakit apa sekarang?')
-            }}
-            disabled={isReasoning}
-          >
-            🩺 Doktor: Anak sakit apa?
-          </button>
-        </div>
 
         {/* AI BIM Grammar Reasoning & Token Chips */}
         {(isReasoning || bimTokens.length > 0) && (
